@@ -71,10 +71,7 @@ class GVariantDatabase {
 
       var valueStart = root.getUint32(offset + 16, endian);
       var valueEnd = root.getUint32(offset + 20, endian);
-
       var value = root.buffer.asUint8List(valueStart, valueEnd - valueStart);
-
-      print('$key=$value');
 
       return _parseGVariant(type, value, endian: endian);
     }
