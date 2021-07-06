@@ -22,7 +22,19 @@ void main() {
     await dconf.start();
 
     var client = DConfClient(bus: DBusClient(clientAddress));
-    print(await client.read('/org/gnome/desktop/interface/font-name'));
+
+    Future<void> listDir(String dir) async {
+      var names = await client.list(dir);
+      for (var name in names) {
+        if (name.endsWith('/')) {
+          await listDir(dir + name);
+        } else {
+          print(dir + name);
+        }
+      }
+    }
+
+    await listDir('/');
 
     await client.close();
   });

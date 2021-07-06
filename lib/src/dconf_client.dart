@@ -25,7 +25,11 @@ class DConfClient {
     _database = GVariantDatabase(configHome.path + '/dconf/user');
   }
 
-  Future<DBusValue?> read(String key) async {
+  Future<List<String>> list(String dir) async {
+    return _database.list(dir);
+  }
+
+  Future<DBusValue?> lookup(String key) async {
     return _database.lookup(key);
   }
 

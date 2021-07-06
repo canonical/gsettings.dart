@@ -9,8 +9,26 @@ class GVariantDatabase {
 
   GVariantDatabase(this.path);
 
+  Future<List<String>> list(String dir) async {
+    var root = await _loadRootTable();
+    return root.list(dir);
+  }
+
   Future<DBusValue?> lookup(String key) async {
-    var data = File(path).readAsBytesSync();
+    var root = await _loadRootTable();
+
+    var value = root.lookup(key);
+    if (value == null) {
+      return null;
+    }
+
+    print('$key=${value.value}');
+
+    return _parseGVariant(value.type, value.value, endian: root.endian).first;
+  }
+
+  Future<_GVariantTable> _loadRootTable() async {
+    var data = await File(path).readAsBytes();
     var blob = ByteData.view(data.buffer);
 
     // Check for correct signature and detect endianess.
@@ -28,52 +46,253 @@ class GVariantDatabase {
 
     var rootStart = blob.getUint32(16, endian);
     var rootEnd = blob.getUint32(20, endian);
-    var root = ByteData.sublistView(blob, rootStart, rootEnd);
+    var rootData = ByteData.sublistView(blob, rootStart, rootEnd);
+    return _GVariantTable(rootData, endian);
+  }
 
+  /// Parse a serialized GVariant. This is similar to but not the same as the DBus encoding.
+  List<DBusValue> _parseGVariant(String type, Uint8List data,
+      {required Endian endian}) {
+    var values = <DBusValue>[];
+    var index = 0;
+    while (true) {
+      var start = index;
+      var end = _validateType(type, start);
+      if (end >= type.length) {
+        return values;
+      }
+      index = end;
+      values.add(_parseGVariantSingleType(type.substring(start, end), data,
+          endian: endian));
+    }
+  }
+
+  /// Parse a single GVariant value. [type] is expected to be a valid single type.
+  DBusValue _parseGVariantSingleType(String type, Uint8List data,
+      {required Endian endian}) {
+    var blob = ByteData.sublistView(data);
+
+    if (type.startsWith('(')) {
+      throw ('FIXME');
+      /*if (!type.endsWith(')')) {
+          throw ('Invalid struct type: $type');
+       }
+       var types = _splitTypes(childTypes);
+       var children = <DBusValue>[];
+       for (var type in types) {
+          // FIXME
+       }
+       return DBusStruct(children);*/
+    }
+
+    if (type.startsWith('a')) {
+      if (type.startsWith('a{')) {
+        if (!type.endsWith('}')) {
+          throw ('Invalid dict type: $type');
+        }
+        /*var childTypes = type.substring(2, type.length - 1);
+          var types = _splitTypes(childTypes);
+          if (types.length != 2) {
+             throw ('Invalid dict types: $childTypes');
+          }
+          return DBusDict(DBusSignature(types[0]), DBusSignature(types[1]), {});*/
+        throw ('FIXME');
+      } else {
+        throw ('FIXME'); //return DBusArray([]);
+      }
+    }
+
+    switch (type) {
+      case 'b': // boolean
+        if (data.length != 1) {
+          throw ('Invalid length of ${data.length} for boolean GVariant');
+        }
+        return DBusBoolean(data[0] != 0);
+      case 'y': // byte
+        if (data.length != 1) {
+          throw ('Invalid length of ${data.length} for byte GVariant');
+        }
+        return DBusByte(data[0]);
+      case 'n': // int16
+        if (data.length != 2) {
+          throw ('Invalid length of ${data.length} for int16 GVariant');
+        }
+        return DBusInt16(blob.getInt16(0, endian));
+      case 'q': // uint16
+        if (data.length != 2) {
+          throw ('Invalid length of ${data.length} for uint16 GVariant');
+        }
+        return DBusUint16(blob.getUint16(0, endian));
+      case 'i': // int32
+        if (data.length != 4) {
+          throw ('Invalid length of ${data.length} for int32 GVariant');
+        }
+        return DBusInt32(blob.getInt32(0, endian));
+      case 'u': // uint32
+        if (data.length != 4) {
+          throw ('Invalid length of ${data.length} for uint32 GVariant');
+        }
+        return DBusUint32(blob.getUint32(0, endian));
+      case 'x': // int64
+        if (data.length != 4) {
+          throw ('Invalid length of ${data.length} for int64 GVariant');
+        }
+        return DBusInt64(blob.getInt64(0, endian));
+      case 't': // uint64
+        if (data.length != 4) {
+          throw ('Invalid length of ${data.length} for uint64 GVariant');
+        }
+        return DBusUint64(blob.getUint64(0, endian));
+      case 'd': // double
+        return DBusDouble(blob.getFloat64(0, endian));
+      case 's': // string
+        return DBusString(utf8.decode(data));
+      case 'o': // object path
+        return DBusObjectPath(utf8.decode(data));
+      case 'g': // signature
+        return DBusSignature(utf8.decode(data));
+      case 'v': // variant
+        // Type is a suffix on the data
+        var childType = '';
+        var offset = data.length - 1;
+        while (offset > 0 && data[offset] != 0) {
+          childType = ascii.decode([data[offset]]) + childType;
+          offset--;
+        }
+        if (offset == 0) {
+          throw ('GVariant variant missing child type');
+        }
+        var childData = Uint8List.sublistView(data, 0, offset);
+        return _parseGVariantSingleType(childType, childData, endian: endian);
+      default:
+        throw ('Unsupported GVariant type $type');
+    }
+  }
+
+  /// Check [value] contains a valid type and return the index of the end of the current child type.
+  int _validateType(String value, int index) {
+    // FIXME: Maybe ('m') type
+
+    if (value.startsWith('(', index)) {
+      // Struct.
+      var end = _findClosing(value, index, '(', ')');
+      if (end < 0) {
+        throw ArgumentError.value(
+            value, 'value', 'Struct missing closing parenthesis');
+      }
+      var childIndex = index + 1;
+      while (childIndex < end) {
+        childIndex = _validateType(value, childIndex) + 1;
+      }
+      return end;
+    } else if (value.startsWith('a{', index)) {
+      // Dict.
+      var end = _findClosing(value, index, '{', '}');
+      if (end < 0) {
+        throw ArgumentError.value(value, 'value', 'Dict missing closing brace');
+      }
+      var childIndex = index + 2;
+      var childCount = 0;
+      while (childIndex < end) {
+        childIndex = _validateType(value, childIndex) + 1;
+        childCount++;
+      }
+      if (childCount != 2) {
+        throw ArgumentError.value(
+            value, 'value', "Dict doesn't have correct number of child types");
+      }
+      return end;
+    } else if (value.startsWith('a', index)) {
+      // Array.
+      if (index >= value.length - 1) {
+        throw ArgumentError.value(value, 'value', 'Array missing child type');
+      }
+      return _validateType(value, index + 1);
+    } else if ('ybnqiuxtdsogv'.contains(value[index])) {
+      return index;
+    } else {
+      throw ArgumentError.value(
+          value, 'value', 'Type contains unknown characters');
+    }
+  }
+
+  /// Find the index int [value] where there is a [closeChar] that matches [openChar].
+  /// These characters nest.
+  int _findClosing(String value, int index, String openChar, String closeChar) {
+    var depth = 0;
+    for (var i = index; i < value.length; i++) {
+      if (value[i] == openChar) {
+        depth++;
+      } else if (value[i] == closeChar) {
+        depth--;
+        if (depth == 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+}
+
+class _GVariantTableValue {
+  final String type;
+  final Uint8List value;
+
+  const _GVariantTableValue(this.type, this.value);
+}
+
+class _GVariantTable {
+  final ByteData data;
+  final Endian endian;
+  late final int _nBloomWords;
+  late final int _bloomOffset;
+  late final int _nBuckets;
+  late final int _bucketOffset;
+  late final int _nHashItems;
+  late final int _hashOffset;
+
+  _GVariantTable(this.data, this.endian) {
     var offset = 0;
-    var nBloomWords = root.getUint32(offset + 0, endian) & 0x3ffffff;
-    var nBuckets = root.getUint32(offset + 4, endian);
+    _nBloomWords = data.getUint32(offset + 0, endian) & 0x3ffffff;
+    _nBuckets = data.getUint32(offset + 4, endian);
     offset += 8;
-    //var bloomOffset = offset; // FIXME
-    offset += nBloomWords * 4;
-    var bucketOffset = offset;
-    offset += nBuckets * 4;
-    var hashOffset = offset;
+    _bloomOffset = offset;
+    offset += _nBloomWords * 4;
+    _bucketOffset = offset;
+    offset += _nBuckets * 4;
+    _hashOffset = offset;
 
-    var nHashItems = (root.lengthInBytes - hashOffset) ~/ 24;
+    _nHashItems = (data.lengthInBytes - _hashOffset) ~/ 24;
+  }
 
+  Future<List<String>> list(String dir) async {
+    var dirHash = _hashKey(dir);
+    var children = <String>[];
+
+    for (var i = 0; i < _nHashItems; i++) {
+      var parent = _getParent(i);
+      if (parent != 0xffffffff && _getHash(parent) == dirHash) {
+        children.add(_getKey(i));
+      }
+    }
+
+    return children;
+  }
+
+  _GVariantTableValue? lookup(String key) {
     var hash = _hashKey(key);
-    var bucket = hash % nBuckets;
-    var start = root.getUint32(bucketOffset + bucket * 4, endian);
-    var end = bucket + 1 < nBuckets
-        ? root.getUint32(bucketOffset + (bucket + 1) * 4, endian)
-        : nHashItems;
+    var bucket = hash % _nBuckets;
+    var start = data.getUint32(_bucketOffset + bucket * 4, endian);
+    var end = bucket + 1 < _nBuckets
+        ? data.getUint32(_bucketOffset + (bucket + 1) * 4, endian)
+        : _nHashItems;
     start = 0;
-    end = nHashItems;
+    end = _nHashItems;
 
     for (var i = start; i < end; i++) {
-      var offset = hashOffset + i * 24;
-
-      var hashValue = root.getUint32(offset + 0, endian);
-      if (hashValue != hash) {
-        continue;
+      if (_getHash(i) == hash && _getKey(i, recurse: true) == key) {
+        return _GVariantTableValue(_getType(i), _getValue(i));
       }
-
-      if (_getKey(root, hashOffset, i, endian: endian) != key) {
-        continue;
-      }
-
-      var type = root.getUint8(offset + 14);
-      if (type != 118) {
-        // 'v'
-        continue;
-      }
-
-      var valueStart = root.getUint32(offset + 16, endian);
-      var valueEnd = root.getUint32(offset + 20, endian);
-      var value = root.buffer.asUint8List(valueStart, valueEnd - valueStart);
-
-      return _parseGVariant(type, value, endian: endian);
     }
 
     return null;
@@ -92,78 +311,39 @@ class GVariantDatabase {
     return hashValue;
   }
 
+  int _getHash(int index) {
+    return data.getUint32(_getHashItemOffset(index) + 0, endian);
+  }
+
+  int _getParent(int index) {
+    return data.getUint32(_getHashItemOffset(index) + 4, endian);
+  }
+
   /// Gets the key name for a hash item.
-  String _getKey(ByteData data, int hashOffset, int index,
-      {required Endian endian}) {
-    var offset = hashOffset + index * 24;
+  String _getKey(int index, {bool recurse = false}) {
+    var parent = recurse ? _getParent(index) : 0xffffffff;
+    var parentKey =
+        parent != 0xffffffff ? _getKey(parent, recurse: recurse) : '';
 
-    var parent = data.getUint32(offset + 4, endian);
-    var parentKey = parent != 0xffffffff
-        ? _getKey(data, hashOffset, parent, endian: endian)
-        : '';
-
+    var offset = _getHashItemOffset(index);
     var keyStart = data.getUint32(offset + 8, endian);
     var keySize = data.getUint16(offset + 12, endian);
     return parentKey + utf8.decode(data.buffer.asUint8List(keyStart, keySize));
   }
 
-  DBusValue _parseGVariant(int type, Uint8List data, {required Endian endian}) {
-    var blob = ByteData.sublistView(data);
-    switch (type) {
-      case 98: // 'b' - boolean
-        if (data.length != 1) {
-          throw ('Invalid length of ${data.length} for boolean GVariant');
-        }
-        return DBusBoolean(data[0] != 0);
-      case 121: // 'y' - byte
-        if (data.length != 1) {
-          throw ('Invalid length of ${data.length} for byte GVariant');
-        }
-        return DBusByte(data[0]);
-      case 110: // 'n' - int16
-        if (data.length != 2) {
-          throw ('Invalid length of ${data.length} for int16 GVariant');
-        }
-        return DBusInt16(blob.getInt16(0, endian));
-      case 113: // 'q' - uint16
-        if (data.length != 2) {
-          throw ('Invalid length of ${data.length} for uint16 GVariant');
-        }
-        return DBusUint16(blob.getUint16(0, endian));
-      case 105: // 'i' - int32
-        if (data.length != 4) {
-          throw ('Invalid length of ${data.length} for int32 GVariant');
-        }
-        return DBusInt32(blob.getInt32(0, endian));
-      case 117: // 'u' - uint32
-        if (data.length != 4) {
-          throw ('Invalid length of ${data.length} for uint32 GVariant');
-        }
-        return DBusUint32(blob.getUint32(0, endian));
-      case 120: // 'x' - int64
-        if (data.length != 4) {
-          throw ('Invalid length of ${data.length} for int64 GVariant');
-        }
-        return DBusInt64(blob.getInt64(0, endian));
-      case 116: // 't' - uint64
-        if (data.length != 4) {
-          throw ('Invalid length of ${data.length} for uint64 GVariant');
-        }
-        return DBusUint64(blob.getUint64(0, endian));
-      case 100: // 'd' - double
-        return DBusDouble(blob.getFloat64(0, endian));
-      case 115: // 's' - string
-        return DBusString(utf8.decode(data));
-      case 111: // 'o' - object path
-        return DBusObjectPath(utf8.decode(data));
-      case 103: // 'g' - signature
-        return DBusSignature(utf8.decode(data));
-      case 118: // 'v' - variant
-        var childType = data.last;
-        var childData = Uint8List.sublistView(data, 0, data.length - 2);
-        return _parseGVariant(childType, childData, endian: endian);
-      default:
-        throw ('Unsupported GVariant type $type');
-    }
+  String _getType(int index) {
+    return ascii.decode([data.getUint8(_getHashItemOffset(index) + 14)]);
+  }
+
+  Uint8List _getValue(int index) {
+    var offset = _getHashItemOffset(index);
+
+    var valueStart = data.getUint32(offset + 16, endian);
+    var valueEnd = data.getUint32(offset + 20, endian);
+    return data.buffer.asUint8List(valueStart, valueEnd - valueStart);
+  }
+
+  int _getHashItemOffset(int index) {
+    return _hashOffset + index * 24;
   }
 }
