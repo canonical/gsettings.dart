@@ -26,10 +26,12 @@ void main() {
     Future<void> listDir(String dir) async {
       var names = await client.list(dir);
       for (var name in names) {
+        var fullName = dir + name;
         if (name.endsWith('/')) {
-          await listDir(dir + name);
+          await listDir(fullName);
         } else {
-          print(dir + name);
+          var value = await client.lookup(fullName);
+          print('$fullName = $value');
         }
       }
     }
