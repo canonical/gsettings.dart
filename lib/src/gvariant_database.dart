@@ -18,8 +18,9 @@ class GVariantDatabase {
     var root = await _loadRootTable();
     var value = root.lookup(key);
     return value != null
-        ? _parseGVariantSingleValue(value.type, value.value,
-            endian: root.endian)
+        ? (_parseGVariantSingleValue(value.type, value.value,
+                endian: root.endian) as DBusVariant)
+            .value
         : null;
   }
 
@@ -103,12 +104,12 @@ class GVariantDatabase {
         }
         return DBusUint32(data.getUint32(0, endian));
       case 'x': // int64
-        if (data.lengthInBytes != 4) {
+        if (data.lengthInBytes != 8) {
           throw ('Invalid length of ${data.lengthInBytes} for int64 GVariant');
         }
         return DBusInt64(data.getInt64(0, endian));
       case 't': // uint64
-        if (data.lengthInBytes != 4) {
+        if (data.lengthInBytes != 8) {
           throw ('Invalid length of ${data.lengthInBytes} for uint64 GVariant');
         }
         return DBusUint64(data.getUint64(0, endian));
@@ -127,15 +128,16 @@ class GVariantDatabase {
         // Type is a suffix on the data
         var childType = '';
         var offset = data.lengthInBytes - 1;
-        while (offset > 0 && data.getUint8(offset) != 0) {
+        while (offset >= 0 && data.getUint8(offset) != 0) {
           childType = ascii.decode([data.getUint8(offset)]) + childType;
           offset--;
         }
-        if (offset == 0) {
+        if (offset < 0) {
           throw ('GVariant variant missing child type');
         }
         var childData = ByteData.sublistView(data, 0, offset);
-        return _parseGVariantSingleValue(childType, childData, endian: endian);
+        return DBusVariant(
+            _parseGVariantSingleValue(childType, childData, endian: endian));
       default:
         throw ("Unsupported GVariant type: '$type'");
     }
@@ -197,7 +199,27 @@ class GVariantDatabase {
   DBusStruct _parseGVariantVariableStruct(
       List<String> childTypes, ByteData data,
       {required Endian endian}) {
-    throw ('FIXME variable struct $childTypes');
+    var offsetSize = _getOffsetSize(data.lengthInBytes);
+    var children = <DBusValue>[];
+    var start = 0;
+    for (var i = 0; i < childTypes.length; i++) {
+      int end;
+      if (i < childTypes.length - 1) {
+        end = _getOffset(
+            data,
+            data.lengthInBytes - offsetSize * (childTypes.length - i),
+            offsetSize,
+            endian: endian);
+      } else {
+        end = data.lengthInBytes - childTypes.length * offsetSize;
+      }
+      children.add(_parseGVariantSingleValue(
+          childTypes[i], ByteData.sublistView(data, start, end),
+          endian: endian));
+      start = end + 1;
+    }
+
+    return DBusStruct(children);
   }
 
   DBusArray _parseGVariantArray(String childType, ByteData data,
@@ -227,7 +249,43 @@ class GVariantDatabase {
     return DBusArray(DBusSignature(childType), []);
   }
 
+  DBusArray _parseGVariantVariableArray(String childType, ByteData data,
+      {required Endian endian}) {
+    // Get end of last element.
+    var offsetSize = _getOffsetSize(data.lengthInBytes);
+    int arrayLength;
+    if (data.lengthInBytes > 0) {
+      var lastOffset = _getOffset(
+          data, data.lengthInBytes - offsetSize, offsetSize,
+          endian: endian);
+
+      // Array size is the number of offsets after the last element.
+      arrayLength = (data.lengthInBytes - lastOffset) ~/ offsetSize;
+    } else {
+      arrayLength = 0;
+    }
+
+    var children = <DBusValue>[];
+    var start = 0;
+    for (var i = 0; i < arrayLength; i++) {
+      var end = _getOffset(
+          data, data.lengthInBytes - offsetSize * (arrayLength - i), offsetSize,
+          endian: endian);
+      var childData = ByteData.sublistView(data, start, end);
+      children
+          .add(_parseGVariantSingleValue(childType, childData, endian: endian));
+      start = end;
+    }
+
+    return DBusArray(DBusSignature(childType), children);
+  }
+
   int _getElementSize(String type) {
+    /// Containers are variable length.
+    if (type.startsWith('(') || type.startsWith('a')) {
+      return -1;
+    }
+
     int elementSize;
     switch (type) {
       case 'y': // byte
@@ -250,32 +308,6 @@ class GVariantDatabase {
       default:
         throw ArgumentError.value(type, 'type', 'Unknown type');
     }
-  }
-
-  DBusArray _parseGVariantVariableArray(String childType, ByteData data,
-      {required Endian endian}) {
-    // Get end of last element.
-    var offsetSize = _getOffsetSize(data.lengthInBytes);
-    var lastOffset = _getOffset(
-        data, data.lengthInBytes - offsetSize, offsetSize,
-        endian: endian);
-
-    // Array size is the number of offsets after the last element.
-    var arrayLength = (data.lengthInBytes - lastOffset) ~/ offsetSize;
-
-    var children = <DBusValue>[];
-    var start = 0;
-    for (var i = 0; i < arrayLength; i++) {
-      var end = _getOffset(
-          data, data.lengthInBytes - offsetSize * (arrayLength - i), offsetSize,
-          endian: endian);
-      var childData = ByteData.sublistView(data, start, end);
-      children
-          .add(_parseGVariantSingleValue(childType, childData, endian: endian));
-      start = end;
-    }
-
-    return DBusArray(DBusSignature(childType), children);
   }
 
   /// Check [value] contains a valid type and return the index of the end of the current child type.
@@ -428,7 +460,9 @@ class _GVariantTable {
     end = _nHashItems;
 
     for (var i = start; i < end; i++) {
-      if (_getHash(i) == hash && _getKey(i, recurse: true) == key) {
+      if (_getHash(i) == hash &&
+          _getKey(i, recurse: true) == key &&
+          _getType(i) == 'v') {
         return _GVariantTableValue(_getType(i), _getValue(i));
       }
     }
