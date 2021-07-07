@@ -50,22 +50,7 @@ class GVariantDatabase {
   DBusValue _parseGVariantSingleValue(String type, ByteData data,
       {required Endian endian}) {
     if (type.startsWith('(')) {
-      print(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-      if (!type.endsWith(')')) {
-        throw ('Invalid struct type: $type');
-      }
-      throw ('FIXME $type');
-      var children = <DBusValue>[];
-      var offset = 0;
-      while (offset < data.lengthInBytes) {
-        var start = offset;
-        var end = _validateType(type, start);
-        children.add(_parseGVariantSingleValue(
-            type.substring(start, end), ByteData.sublistView(data),
-            endian: endian));
-        offset = end;
-      }
-      return DBusStruct(children);
+      return _parseGVariantStruct(type, data, endian: endian);
     }
 
     if (type.startsWith('a')) {
@@ -156,40 +141,79 @@ class GVariantDatabase {
     }
   }
 
-  DBusValue _parseGVariantArray(String childType, ByteData data,
+  DBusStruct _parseGVariantStruct(String type, ByteData data,
       {required Endian endian}) {
-    if ('ybnqiuxtd'.contains(childType)) {
-      return _parseGVariantFixedArray(childType, data, endian: endian);
+    if (!type.endsWith(')')) {
+      throw ('Invalid struct type: $type');
+    }
+    var offset = 1;
+    var elementSize = 0;
+    var childTypes = <String>[];
+    while (offset < type.length - 1) {
+      var start = offset;
+      var end = _validateType(type, start);
+      var childType = type.substring(start, end + 1);
+      childTypes.add(childType);
+      var size = _getElementSize(childType);
+      if (elementSize != -1) {
+        // A variable length element forces the whole struct to be variable, or use largest size required.
+        if (size < 0 || size > elementSize) {
+          elementSize = size;
+        }
+      }
+      offset = end + 1;
+    }
+
+    if (elementSize > 0) {
+      return _parseGVariantFixedStruct(childTypes, elementSize, data,
+          endian: endian);
+    } else {
+      return _parseGVariantVariableStruct(childTypes, data, endian: endian);
+    }
+  }
+
+  DBusStruct _parseGVariantFixedStruct(
+      List<String> childTypes, int elementSize, ByteData data,
+      {required Endian endian}) {
+    if (data.lengthInBytes != childTypes.length * elementSize) {
+      throw ('Fixed struct size mismatch');
+    }
+
+    var children = <DBusValue>[];
+    for (var i = 0; i < childTypes.length; i++) {
+      var size = _getElementSize(childTypes[i]);
+      if (size < 0) {
+        throw ('Variable element in fixed struct');
+      }
+      var start = i * elementSize;
+      children.add(_parseGVariantSingleValue(
+          childTypes[i], ByteData.sublistView(data, start, start + size),
+          endian: endian));
+    }
+
+    return DBusStruct(children);
+  }
+
+  DBusStruct _parseGVariantVariableStruct(
+      List<String> childTypes, ByteData data,
+      {required Endian endian}) {
+    throw ('FIXME variable struct $childTypes');
+  }
+
+  DBusArray _parseGVariantArray(String childType, ByteData data,
+      {required Endian endian}) {
+    var elementSize = _getElementSize(childType);
+    if (elementSize > 0) {
+      return _parseGVariantFixedArray(childType, elementSize, data,
+          endian: endian);
     } else {
       return _parseGVariantVariableArray(childType, data, endian: endian);
     }
   }
 
-  DBusValue _parseGVariantFixedArray(String childType, ByteData data,
+  DBusArray _parseGVariantFixedArray(
+      String childType, int elementSize, ByteData data,
       {required Endian endian}) {
-    int elementSize;
-    switch (childType) {
-      case 'y': // byte
-      case 'b': // boolean
-        elementSize = 1;
-        break;
-      case 'n': // int16
-      case 'q': // uint16
-        elementSize = 2;
-        break;
-      case 'i': // int32
-      case 'u': // uint32
-        elementSize = 4;
-        break;
-      case 'x': // int64
-      case 't': // uint64
-      case 'd': // double
-        elementSize = 8;
-        break;
-      default:
-        throw ArgumentError.value(
-            childType, 'childType', 'Unknown fixed array element');
-    }
     var arrayLength = data.lengthInBytes ~/ elementSize;
 
     var children = <DBusValue>[];
@@ -203,7 +227,32 @@ class GVariantDatabase {
     return DBusArray(DBusSignature(childType), []);
   }
 
-  DBusValue _parseGVariantVariableArray(String childType, ByteData data,
+  int _getElementSize(String type) {
+    int elementSize;
+    switch (type) {
+      case 'y': // byte
+      case 'b': // boolean
+        return 1;
+      case 'n': // int16
+      case 'q': // uint16
+        return 2;
+      case 'i': // int32
+      case 'u': // uint32
+        return 4;
+      case 'x': // int64
+      case 't': // uint64
+      case 'd': // double
+        return 8;
+      case 's': // string
+      case 'o': // object path
+      case 'g': // signature
+        return -1; // variable size
+      default:
+        throw ArgumentError.value(type, 'type', 'Unknown type');
+    }
+  }
+
+  DBusArray _parseGVariantVariableArray(String childType, ByteData data,
       {required Endian endian}) {
     // Get end of last element.
     var offsetSize = _getOffsetSize(data.lengthInBytes);
