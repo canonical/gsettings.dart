@@ -50,26 +50,25 @@ class GVariantDatabase {
   /// Parse a single GVariant value. [type] is expected to be a valid single type.
   DBusValue _parseGVariantSingleValue(String type, ByteData data,
       {required Endian endian}) {
+    // struct
     if (type.startsWith('(')) {
       return _parseGVariantStruct(type, data, endian: endian);
     }
 
+    // array / dict
     if (type.startsWith('a')) {
       if (type.startsWith('a{')) {
-        if (!type.endsWith('}')) {
-          throw ('Invalid dict type: $type');
-        }
-        /*var childTypes = type.substring(2, type.length - 1);
-          var types = _splitTypes(childTypes);
-          if (types.length != 2) {
-             throw ('Invalid dict types: $childTypes');
-          }
-          return DBusDict(DBusSignature(types[0]), DBusSignature(types[1]), {});*/
-        throw ('FIXME $type');
+        return _parseGVariantDict(type, data, endian: endian);
       } else {
         var childType = type.substring(1);
         return _parseGVariantArray(childType, data, endian: endian);
       }
+    }
+
+    // maybe
+    if (type.startsWith('m')) {
+      var childType = type.substring(1);
+      return _parseGVariantMaybe(childType, data, endian: endian);
     }
 
     switch (type) {
@@ -145,7 +144,7 @@ class GVariantDatabase {
 
   DBusStruct _parseGVariantStruct(String type, ByteData data,
       {required Endian endian}) {
-    if (!type.endsWith(')')) {
+    if (!type.startsWith('(') || !type.endsWith(')')) {
       throw ('Invalid struct type: $type');
     }
     var offset = 1;
@@ -222,6 +221,14 @@ class GVariantDatabase {
     return DBusStruct(children);
   }
 
+  DBusArray _parseGVariantDict(String type, ByteData data,
+      {required Endian endian}) {
+    if (!type.startsWith('a{') || !type.endsWith('}')) {
+      throw ('Invalid dict type: $type');
+    }
+    throw ('FIXME: dict $type');
+  }
+
   DBusArray _parseGVariantArray(String childType, ByteData data,
       {required Endian endian}) {
     var elementSize = _getElementSize(childType);
@@ -278,6 +285,11 @@ class GVariantDatabase {
     }
 
     return DBusArray(DBusSignature(childType), children);
+  }
+
+  DBusArray _parseGVariantMaybe(String childType, ByteData data,
+      {required Endian endian}) {
+    throw ('FIXME: maybe $childType');
   }
 
   int _getElementSize(String type) {
