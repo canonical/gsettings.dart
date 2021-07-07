@@ -185,46 +185,47 @@ class GVariantDatabase {
     var offset = 1;
     var elementSize = 0;
     var childTypes = <String>[];
+    var childSizes = <int>[];
     while (offset < type.length - 1) {
       var start = offset;
       var end = _validateType(type, start);
       var childType = type.substring(start, end + 1);
       childTypes.add(childType);
-      var size = _getElementSize(childType);
-      if (elementSize != -1) {
-        // A variable length element forces the whole struct to be variable, or use largest size required.
-        if (size < 0 || size > elementSize) {
-          elementSize = size;
-        }
-      }
+      childSizes.add(_getElementSize(childType));
       offset = end + 1;
     }
 
-    if (elementSize > 0) {
-      return _parseGVariantFixedStruct(childTypes, elementSize, data,
-          endian: endian);
-    } else {
+    // Check if the sizes of the elements can be determined before parsing.
+    // The last element can be variable, as it takes up the remaining space.
+    var variableSize = false;
+    for (var i = 0; i < childSizes.length - 1; i++) {
+      if (childSizes[i] == -1) {
+        variableSize = true;
+        break;
+      }
+    }
+
+    if (variableSize) {
       return _parseGVariantVariableStruct(childTypes, data, endian: endian);
+    } else {
+      return _parseGVariantFixedStruct(childTypes, data, endian: endian);
     }
   }
 
-  DBusStruct _parseGVariantFixedStruct(
-      List<String> childTypes, int elementSize, ByteData data,
+  DBusStruct _parseGVariantFixedStruct(List<String> childTypes, ByteData data,
       {required Endian endian}) {
-    if (data.lengthInBytes != childTypes.length * elementSize) {
-      throw ('Fixed struct size mismatch');
-    }
-
     var children = <DBusValue>[];
+    var offset = 0;
     for (var i = 0; i < childTypes.length; i++) {
+      var start = _align(offset, _getAlignment(childTypes[i]));
       var size = _getElementSize(childTypes[i]);
       if (size < 0) {
-        throw ('Variable element in fixed struct');
+        size = data.lengthInBytes - start;
       }
-      var start = i * elementSize;
       children.add(_parseGVariantSingleValue(
           childTypes[i], ByteData.sublistView(data, start, start + size),
           endian: endian));
+      offset += size;
     }
 
     return DBusStruct(children);
@@ -235,22 +236,21 @@ class GVariantDatabase {
       {required Endian endian}) {
     var offsetSize = _getOffsetSize(data.lengthInBytes);
     var children = <DBusValue>[];
-    var start = 0;
+    var offset = 0;
     for (var i = 0; i < childTypes.length; i++) {
+      var start = _align(offset, _getAlignment(childTypes[i]));
       int end;
       if (i < childTypes.length - 1) {
         end = _getOffset(
-            data,
-            data.lengthInBytes - offsetSize * (childTypes.length - i),
-            offsetSize,
+            data, data.lengthInBytes - offsetSize * (i + 1), offsetSize,
             endian: endian);
       } else {
-        end = data.lengthInBytes - childTypes.length * offsetSize;
+        end = data.lengthInBytes - (childTypes.length - 1) * offsetSize;
       }
       children.add(_parseGVariantSingleValue(
           childTypes[i], ByteData.sublistView(data, start, end),
           endian: endian));
-      start = end + 1;
+      offset = end;
     }
 
     return DBusStruct(children);
@@ -330,9 +330,14 @@ class GVariantDatabase {
     return DBusMaybe(DBusSignature(childType), value);
   }
 
+  int _align(int offset, int alignment) {
+    var x = offset % alignment;
+    return x == 0 ? offset : offset + (alignment - x);
+  }
+
   int _getElementSize(String type) {
     /// Containers are variable length.
-    if (type.startsWith('(') || type.startsWith('a')) {
+    if (type.startsWith('(') || type.startsWith('a') || type.startsWith('m')) {
       return -1;
     }
 
@@ -355,8 +360,49 @@ class GVariantDatabase {
       case 'o': // object path
       case 'g': // signature
       case 'v': // variant
-      case 'm': // maybe
         return -1; // variable size
+      default:
+        throw ArgumentError.value(type, 'type', 'Unknown type');
+    }
+  }
+
+  int _getAlignment(String type) {
+    if (type.startsWith('a') || type.startsWith('m')) {
+      return _getAlignment(type.substring(1));
+    }
+    if (type.startsWith('(') || type.startsWith('{')) {
+      var alignment = 1;
+      var offset = 1;
+      while (offset < type.length - 1) {
+        var end = _validateType(type, offset) + 1;
+        var a = _getAlignment(type.substring(offset, end));
+        if (a > alignment) {
+          alignment = a;
+        }
+        offset = end;
+      }
+      return alignment;
+    }
+
+    int elementSize;
+    switch (type) {
+      case 'y': // byte
+      case 'b': // boolean
+      case 's': // string
+      case 'o': // object path
+      case 'g': // signature
+        return 1;
+      case 'n': // int16
+      case 'q': // uint16
+        return 2;
+      case 'i': // int32
+      case 'u': // uint32
+        return 4;
+      case 'x': // int64
+      case 't': // uint64
+      case 'd': // double
+      case 'v': // variant
+        return 8;
       default:
         throw ArgumentError.value(type, 'type', 'Unknown type');
     }
@@ -364,8 +410,6 @@ class GVariantDatabase {
 
   /// Check [value] contains a valid type and return the index of the end of the current child type.
   int _validateType(String value, int index) {
-    // FIXME: Maybe ('m') type
-
     if (value.startsWith('(', index)) {
       // Struct.
       var end = _findClosing(value, index, '(', ')');
