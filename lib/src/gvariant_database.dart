@@ -18,7 +18,8 @@ class GVariantDatabase {
     var root = await _loadRootTable();
     var value = root.lookup(key);
     return value != null
-        ? _parseGVariant(value.type, value.value, endian: root.endian).first
+        ? _parseGVariantSingleValue(value.type, value.value,
+            endian: root.endian)
         : null;
   }
 
@@ -42,40 +43,29 @@ class GVariantDatabase {
     var rootStart = data.getUint32(16, endian);
     var rootEnd = data.getUint32(20, endian);
     return _GVariantTable(
-        ByteData.sublistView(data, rootStart, rootEnd), endian);
-  }
-
-  /// Parse a serialized GVariant. This is similar to but not the same as the DBus encoding.
-  List<DBusValue> _parseGVariant(String type, Uint8List data,
-      {required Endian endian}) {
-    var values = <DBusValue>[];
-    var index = 0;
-    while (index < type.length) {
-      var start = index;
-      var end = _validateType(type, start) + 1;
-      index = end;
-      values.add(_parseGVariantSingleValue(
-          type.substring(start, end), ByteData.sublistView(data),
-          endian: endian));
-    }
-
-    return values;
+        ByteData.sublistView(data, rootStart, rootEnd), data, endian);
   }
 
   /// Parse a single GVariant value. [type] is expected to be a valid single type.
   DBusValue _parseGVariantSingleValue(String type, ByteData data,
       {required Endian endian}) {
     if (type.startsWith('(')) {
+      print(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      if (!type.endsWith(')')) {
+        throw ('Invalid struct type: $type');
+      }
       throw ('FIXME $type');
-      /*if (!type.endsWith(')')) {
-          throw ('Invalid struct type: $type');
-       }
-       var types = _splitTypes(childTypes);
-       var children = <DBusValue>[];
-       for (var type in types) {
-          // FIXME
-       }
-       return DBusStruct(children);*/
+      var children = <DBusValue>[];
+      var offset = 0;
+      while (offset < data.lengthInBytes) {
+        var start = offset;
+        var end = _validateType(type, start);
+        children.add(_parseGVariantSingleValue(
+            type.substring(start, end), ByteData.sublistView(data),
+            endian: endian));
+        offset = end;
+      }
+      return DBusStruct(children);
     }
 
     if (type.startsWith('a')) {
@@ -334,13 +324,14 @@ class GVariantDatabase {
 
 class _GVariantTableValue {
   final String type;
-  final Uint8List value;
+  final ByteData value;
 
   const _GVariantTableValue(this.type, this.value);
 }
 
 class _GVariantTable {
   final ByteData data;
+  final ByteData fullData;
   final Endian endian;
   late final int _nBloomWords;
   late final int _bloomOffset;
@@ -349,7 +340,7 @@ class _GVariantTable {
   late final int _nHashItems;
   late final int _hashOffset;
 
-  _GVariantTable(this.data, this.endian) {
+  _GVariantTable(this.data, this.fullData, this.endian) {
     var offset = 0;
     _nBloomWords = data.getUint32(offset + 0, endian) & 0x3ffffff;
     _nBuckets = data.getUint32(offset + 4, endian);
@@ -433,12 +424,12 @@ class _GVariantTable {
     return ascii.decode([data.getUint8(_getHashItemOffset(index) + 14)]);
   }
 
-  Uint8List _getValue(int index) {
+  ByteData _getValue(int index) {
     var offset = _getHashItemOffset(index);
 
     var valueStart = data.getUint32(offset + 16, endian);
     var valueEnd = data.getUint32(offset + 20, endian);
-    return data.buffer.asUint8List(valueStart, valueEnd - valueStart);
+    return ByteData.sublistView(fullData, valueStart, valueEnd);
   }
 
   int _getHashItemOffset(int index) {
