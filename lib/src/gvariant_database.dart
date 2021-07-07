@@ -337,8 +337,24 @@ class GVariantDatabase {
 
   int _getElementSize(String type) {
     /// Containers are variable length.
-    if (type.startsWith('(') || type.startsWith('a') || type.startsWith('m')) {
+    if (type.startsWith('a') || type.startsWith('m')) {
       return -1;
+    }
+
+    if (type.startsWith('(') || type.startsWith('{')) {
+      var size = 0;
+      var alignment = 1;
+      var offset = 1;
+      while (offset < type.length - 1) {
+        var end = _validateType(type, offset) + 1;
+        var s = _getElementSize(type.substring(offset, end));
+        if (s < 0) {
+          return -1;
+        }
+        size += s;
+        offset = end;
+      }
+      return size;
     }
 
     int elementSize;
