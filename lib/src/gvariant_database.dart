@@ -168,15 +168,48 @@ class GVariantDatabase {
 
   DBusValue _parseGVariantArray(String childType, ByteData data,
       {required Endian endian}) {
-    if (childType == 's') {
-      return _parseGVariantVariableArray(childType, data, endian: endian);
+    if ('ybnqiuxtd'.contains(childType)) {
+      return _parseGVariantFixedArray(childType, data, endian: endian);
     } else {
-      throw ('FIXME: array: $childType');
+      return _parseGVariantVariableArray(childType, data, endian: endian);
     }
   }
 
   DBusValue _parseGVariantFixedArray(String childType, ByteData data,
       {required Endian endian}) {
+    int elementSize;
+    switch (childType) {
+      case 'y': // byte
+      case 'b': // boolean
+        elementSize = 1;
+        break;
+      case 'n': // int16
+      case 'q': // uint16
+        elementSize = 2;
+        break;
+      case 'i': // int32
+      case 'u': // uint32
+        elementSize = 4;
+        break;
+      case 'x': // int64
+      case 't': // uint64
+      case 'd': // double
+        elementSize = 8;
+        break;
+      default:
+        throw ArgumentError.value(
+            childType, 'childType', 'Unknown fixed array element');
+    }
+    var arrayLength = data.lengthInBytes ~/ elementSize;
+
+    var children = <DBusValue>[];
+    for (var i = 0; i < arrayLength; i++) {
+      var start = i * elementSize;
+      var childData = ByteData.sublistView(data, start, start + elementSize);
+      children
+          .add(_parseGVariantSingleValue(childType, childData, endian: endian));
+    }
+
     return DBusArray(DBusSignature(childType), []);
   }
 
