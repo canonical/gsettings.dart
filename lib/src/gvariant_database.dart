@@ -4,6 +4,41 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 
+// FIXME: Move into dbus.dart
+class DBusMaybe extends DBusValue {
+  /// Signature of the value this maybe contains.
+  final DBusSignature valueSignature;
+
+  /// The value contained in this maybe.
+  final DBusValue? value;
+
+  const DBusMaybe(this.valueSignature, this.value);
+
+  @override
+  DBusSignature get signature {
+    return DBusSignature('m');
+  }
+
+  @override
+  dynamic toNative() {
+    return value?.toNative();
+  }
+
+  @override
+  bool operator ==(other) =>
+      other is DBusMaybe &&
+      other.valueSignature == valueSignature &&
+      other.value == value;
+
+  @override
+  int get hashCode => valueSignature.hashCode | value.hashCode;
+
+  @override
+  String toString() {
+    return 'DBusMaybe($valueSignature, ${value?.toString()})';
+  }
+}
+
 class GVariantDatabase {
   final String path;
 
@@ -287,9 +322,12 @@ class GVariantDatabase {
     return DBusArray(DBusSignature(childType), children);
   }
 
-  DBusArray _parseGVariantMaybe(String childType, ByteData data,
+  DBusMaybe _parseGVariantMaybe(String childType, ByteData data,
       {required Endian endian}) {
-    throw ('FIXME: maybe $childType');
+    var value = data.lengthInBytes > 0
+        ? _parseGVariantSingleValue(childType, data, endian: endian)
+        : null;
+    return DBusMaybe(DBusSignature(childType), value);
   }
 
   int _getElementSize(String type) {
@@ -316,6 +354,8 @@ class GVariantDatabase {
       case 's': // string
       case 'o': // object path
       case 'g': // signature
+      case 'v': // variant
+      case 'm': // maybe
         return -1; // variable size
       default:
         throw ArgumentError.value(type, 'type', 'Unknown type');
@@ -361,7 +401,7 @@ class GVariantDatabase {
         throw ArgumentError.value(value, 'value', 'Array missing child type');
       }
       return _validateType(value, index + 1);
-    } else if ('ybnqiuxtdsogv'.contains(value[index])) {
+    } else if ('ybnqiuxtdsogvm'.contains(value[index])) {
       return index;
     } else {
       throw ArgumentError.value(
