@@ -22,6 +22,8 @@ class DConfClient {
         _closeBus = bus == null {
     //_writer = DBusRemoteObject(
     //    _bus, 'ca.desrt.dconf', DBusObjectPath('/ca/desrt/dconf/Writer/user'));
+    //_database = GVariantDatabase(
+    //    '/usr/share/glib-2.0/schemas/gschemas.compiled');
     _database = GVariantDatabase(configHome.path + '/dconf/user');
   }
 
