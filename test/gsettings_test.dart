@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
+import 'package:gsettings/gsettings.dart';
 import 'package:test/test.dart';
-import 'package:dconf/dconf.dart';
 
 class MockDConfServer extends DBusClient {
   MockDConfServer(DBusAddress clientAddress) : super(clientAddress);

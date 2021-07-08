@@ -165,7 +165,7 @@ class GVariantDatabaseTable {
     return null;
   }
 
-  /// Gets the hash for a DConf key.
+  /// Gets the hash for a table key.
   int _hashKey(String key) {
     var hashValue = 5381;
     for (var o in utf8.encode(key)) {
