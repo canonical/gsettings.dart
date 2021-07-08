@@ -13,7 +13,7 @@ class MockDConfServer extends DBusClient {
 }
 
 void main() {
-  test('FIXME', () async {
+  test('dconf read all', () async {
     var server = DBusServer();
     var clientAddress =
         await server.listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
@@ -39,5 +39,14 @@ void main() {
     await listDir('/');
 
     await client.close();
+  });
+
+  test('list schemas', () async {
+    print(await listGSettingsSchemas());
+  });
+
+  test('list schema', () async {
+    var schema = GSettingsSchema('org.gnome.desktop.sound');
+    await schema.load();
   });
 }
