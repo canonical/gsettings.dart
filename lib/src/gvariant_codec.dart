@@ -217,12 +217,30 @@ class GVariantCodec {
     return DBusStruct(children);
   }
 
-  DBusArray _parseGVariantDict(String type, ByteData data,
+  DBusDict _parseGVariantDict(String type, ByteData data,
       {required Endian endian}) {
     if (!type.startsWith('a{') || !type.endsWith('}')) {
       throw ('Invalid dict type: $type');
     }
-    throw ('FIXME: dict $type');
+    var keyStart = 2;
+    var keyEnd = _validateType(type, keyStart);
+    var keyType = type.substring(keyStart, keyEnd + 1);
+    var valueStart = keyEnd + 1;
+    var valueEnd = _validateType(type, valueStart);
+    var valueType = type.substring(valueStart, valueEnd + 1);
+    if (valueEnd != type.length - 2) {
+      throw ('Invalid dict type: $type');
+    }
+    // Data is stored as an array, this could be optimised to avoid being unpacked and repacked as a dict.
+    var array =
+        _parseGVariantArray('($keyType$valueType)', data, endian: endian);
+    var values = <DBusValue, DBusValue>{};
+    for (var child in array.children) {
+      var key = (child as DBusStruct).children[0];
+      var value = (child as DBusStruct).children[1];
+      values[key] = value;
+    }
+    return DBusDict(DBusSignature(keyType), DBusSignature(valueType), values);
   }
 
   DBusArray _parseGVariantArray(String childType, ByteData data,
