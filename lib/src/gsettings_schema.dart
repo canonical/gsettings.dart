@@ -75,6 +75,11 @@ class GSettingsSchema {
     return (schemaEntry as DBusStruct).children[0];
   }
 
+  /// Sets the key with [name] to [value].
+  Future<void> set(String name, DBusValue value) async {
+    throw ('Not implemented');
+  }
+
   // Get the database entry for this schema.
   Future<GVariantDatabaseTable> _load() async {
     for (var dir in _getSchemaDirs()) {
