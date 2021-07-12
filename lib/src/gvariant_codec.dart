@@ -113,14 +113,14 @@ class GVariantCodec {
       case 'd': // double
         return DBusDouble(data.getFloat64(0, endian));
       case 's': // string
-        return DBusString(utf8.decode(
-            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)));
+        return DBusString(utf8.decode(data.buffer
+            .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'o': // object path
-        return DBusObjectPath(utf8.decode(
-            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)));
+        return DBusObjectPath(utf8.decode(data.buffer
+            .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'g': // signature
-        return DBusSignature(utf8.decode(
-            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)));
+        return DBusSignature(utf8.decode(data.buffer
+            .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'v': // variant
         // Type is a suffix on the data
         var childType = '';
