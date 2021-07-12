@@ -34,27 +34,13 @@ Future<List<String>> listGSettingsSchemas() async {
   return database.list(dir: '');
 }
 
+/// A GSettings schema.
 class GSettingsSchema {
+  /// The name of this schema, e.g. 'org.gnome.desktop.interface'.
   final String name;
 
+  /// Create a new GSettings schema with [name].
   GSettingsSchema(this.name);
-
-  Future<GVariantDatabaseTable> _load() async {
-    for (var dir in _getSchemaDirs()) {
-      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
-      GVariantDatabaseTable table;
-      try {
-        var table = await database.lookupTable(name);
-        if (table != null) {
-          return table;
-        }
-      } on FileSystemException {
-        continue;
-      }
-    }
-
-    throw ('GSettings schema $name not installed');
-  }
 
   /// Gets the keys in this schema.
   Future<List<String>> list() async {
@@ -87,5 +73,23 @@ class GSettingsSchema {
 
     // Return default value.
     return (schemaEntry as DBusStruct).children[0];
+  }
+
+  // Get the database entry for this schema.
+  Future<GVariantDatabaseTable> _load() async {
+    for (var dir in _getSchemaDirs()) {
+      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      GVariantDatabaseTable table;
+      try {
+        var table = await database.lookupTable(name);
+        if (table != null) {
+          return table;
+        }
+      } on FileSystemException {
+        continue;
+      }
+    }
+
+    throw ('GSettings schema $name not installed');
   }
 }
