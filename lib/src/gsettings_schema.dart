@@ -1,9 +1,31 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dbus/dbus.dart';
+import 'package:xdg_directories/xdg_directories.dart';
 
 import 'dconf_client.dart';
 import 'gvariant_database.dart';
+
+// Get the directories that contain schemas.
+List<Directory> _getSchemaDirs() {
+  var schemaDirs = <Directory>[];
+
+  var schemaDir = Platform.environment['GSETTINGS_SCHEMA_DIR'];
+  if (schemaDir != null) {
+    schemaDirs.add(Directory(schemaDir));
+  }
+
+  for (var dataDir in dataDirs) {
+    var path = dataDir.path;
+    if (!path.endsWith('/')) {
+      path += '/';
+    }
+    path += 'glib-2.0/schemas';
+    schemaDirs.add(Directory(path));
+  }
+  return schemaDirs;
+}
 
 /// Get the names of the installed schemas.
 Future<List<String>> listGSettingsSchemas() async {
@@ -18,15 +40,20 @@ class GSettingsSchema {
   GSettingsSchema(this.name);
 
   Future<GVariantDatabaseTable> _load() async {
-    var database =
-        GVariantDatabase('/usr/share/glib-2.0/schemas/gschemas.compiled');
-    var table = await database.lookupTable(name);
-    if (table == null) {
-      throw ('GSettings schema $name not installed');
+    for (var dir in _getSchemaDirs()) {
+      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      GVariantDatabaseTable table;
+      try {
+        var table = await database.lookupTable(name);
+        if (table != null) {
+          return table;
+        }
+      } on FileSystemException {
+        continue;
+      }
     }
-    table.list(dir: '');
 
-    return table;
+    throw ('GSettings schema $name not installed');
   }
 
   /// Gets the keys in this schema.
