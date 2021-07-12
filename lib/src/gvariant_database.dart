@@ -46,9 +46,9 @@ class GVariantDatabase {
 
   GVariantDatabase(this.path);
 
-  Future<List<String>> list(String dir, {String? type}) async {
+  Future<List<String>> list({String? dir, String? type}) async {
     var root = await _loadRootTable();
-    return root.list(dir, type);
+    return root.list(dir: dir, type: type);
   }
 
   Future<DBusValue?> lookup(String key) async {
@@ -110,8 +110,8 @@ class GVariantDatabaseTable {
     _nHashItems = (data.lengthInBytes - _hashOffset) ~/ 24;
   }
 
-  List<String> list(String dir, String? type) {
-    var dirHash = _hashKey(dir);
+  List<String> list({String? dir, String? type}) {
+    var dirHash = dir != null ? _hashKey(dir) : 0;
     var children = <String>[];
 
     for (var i = 0; i < _nHashItems; i++) {
@@ -119,9 +119,16 @@ class GVariantDatabaseTable {
       if (type != null && _getType(i) != type) {
         continue;
       }
-      if (parent != 0xffffffff && _getHash(parent) == dirHash) {
-        children.add(_getKey(i));
+      if (dir != null) {
+        if (parent == 0xffffffff || _getHash(parent) != dirHash) {
+          continue;
+        }
+      } else {
+        if (parent != 0xffffffff) {
+          continue;
+        }
       }
+      children.add(_getKey(i));
     }
 
     return children;

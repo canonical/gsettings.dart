@@ -26,7 +26,7 @@ class DConfClient {
   }
 
   Future<List<String>> list(String dir) async {
-    return _database.list(dir);
+    return _database.list(dir: dir);
   }
 
   Future<DBusValue?> lookup(String key) async {
