@@ -47,5 +47,6 @@ void main() {
 
   test('list schema', () async {
     var schema = GSettingsSchema('org.gnome.desktop.sound');
+    print(await schema.list());
   });
 }

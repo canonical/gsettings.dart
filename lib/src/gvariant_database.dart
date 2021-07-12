@@ -90,7 +90,7 @@ class GVariantDatabaseTable {
   final ByteData fullData;
   final Endian endian;
   late final int _nBloomWords;
-  late final int _bloomOffset;
+  //late final int _bloomOffset; // FIXME
   late final int _nBuckets;
   late final int _bucketOffset;
   late final int _nHashItems;
@@ -101,7 +101,7 @@ class GVariantDatabaseTable {
     _nBloomWords = data.getUint32(offset + 0, endian) & 0x3ffffff;
     _nBuckets = data.getUint32(offset + 4, endian);
     offset += 8;
-    _bloomOffset = offset;
+    //_bloomOffset = offset; // FIXME
     offset += _nBloomWords * 4;
     _bucketOffset = offset;
     offset += _nBuckets * 4;

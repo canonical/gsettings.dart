@@ -24,7 +24,7 @@ class GSettingsSchema {
     if (table == null) {
       throw ('GSettings schema $name not installed');
     }
-    await table.list(dir: '');
+    table.list(dir: '');
 
     return table;
   }
@@ -44,7 +44,7 @@ class GSettingsSchema {
     }
 
     // Get path key is stored in backed.
-    var pathValue = await table.lookup('.path');
+    var pathValue = table.lookup('.path');
     if (pathValue == null) {
       throw ('Unable to determine path for schema ${this.name}');
     }
@@ -53,7 +53,7 @@ class GSettingsSchema {
     // Lookup user value in DConf.
     var client = DConfClient();
     var value = await client.lookup(path + name);
-    client.close();
+    await client.close();
     if (value != null) {
       return value;
     }

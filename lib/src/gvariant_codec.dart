@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
@@ -145,7 +144,6 @@ class GVariantCodec {
       throw ('Invalid struct type: $type');
     }
     var offset = 1;
-    var elementSize = 0;
     var childTypes = <String>[];
     var childSizes = <int>[];
     while (offset < type.length - 1) {
@@ -236,9 +234,8 @@ class GVariantCodec {
         _parseGVariantArray('($keyType$valueType)', data, endian: endian);
     var values = <DBusValue, DBusValue>{};
     for (var child in array.children) {
-      var key = (child as DBusStruct).children[0];
-      var value = (child as DBusStruct).children[1];
-      values[key] = value;
+      var keyValue = child as DBusStruct;
+      values[keyValue.children[0]] = keyValue.children[1];
     }
     return DBusDict(DBusSignature(keyType), DBusSignature(valueType), values);
   }
@@ -319,7 +316,6 @@ class GVariantCodec {
 
     if (type.startsWith('(') || type.startsWith('{')) {
       var size = 0;
-      var alignment = 1;
       var offset = 1;
       while (offset < type.length - 1) {
         var end = _validateType(type, offset) + 1;
@@ -333,7 +329,6 @@ class GVariantCodec {
       return size;
     }
 
-    int elementSize;
     switch (type) {
       case 'y': // byte
       case 'b': // boolean
@@ -376,7 +371,6 @@ class GVariantCodec {
       return alignment;
     }
 
-    int elementSize;
     switch (type) {
       case 'y': // byte
       case 'b': // boolean
