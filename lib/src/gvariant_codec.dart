@@ -77,12 +77,30 @@ class GVariantCodec {
       case 'd': // double
         return DBusDouble(data.getFloat64(0, endian));
       case 's': // string
+        if (data.lengthInBytes < 1) {
+          throw ('Invalid length of ${data.lengthInBytes} for string GVariant');
+        }
+        if (data.getUint8(data.lengthInBytes - 1) != 0) {
+          throw ('Missing trailing nul character for string GVariant');
+        }
         return DBusString(utf8.decode(data.buffer
             .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'o': // object path
+        if (data.lengthInBytes < 1) {
+          throw ('Invalid length of ${data.lengthInBytes} for object path GVariant');
+        }
+        if (data.getUint8(data.lengthInBytes - 1) != 0) {
+          throw ('Missing trailing nul character for object path GVariant');
+        }
         return DBusObjectPath(utf8.decode(data.buffer
             .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'g': // signature
+        if (data.lengthInBytes < 1) {
+          throw ('Invalid length of ${data.lengthInBytes} for signature GVariant');
+        }
+        if (data.getUint8(data.lengthInBytes - 1) != 0) {
+          throw ('Missing trailing nul character for object path GVariant');
+        }
         return DBusSignature(utf8.decode(data.buffer
             .asUint8List(data.offsetInBytes, data.lengthInBytes - 1)));
       case 'v': // variant
