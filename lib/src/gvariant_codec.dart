@@ -6,8 +6,10 @@ import 'package:dbus/dbus.dart';
 class GVariantCodec {
   GVariantCodec();
 
-  Uint8List encode(DBusValue value) {
-    throw ('Not implemented');
+  Uint8List encode(DBusValue value, {required Endian endian}) {
+    var builder = BytesBuilder();
+    _encode(builder, value, endian);
+    return builder.takeBytes();
   }
 
   /// Parse a single GVariant value. [type] is expected to be a valid single type.
@@ -118,6 +120,194 @@ class GVariantCodec {
         return DBusVariant(decode(childType, childData, endian: endian));
       default:
         throw ("Unsupported GVariant type: '$type'");
+    }
+  }
+
+  void _encode(BytesBuilder builder, DBusValue value, Endian endian) {
+    /// Align this value.
+    var offset = _align(builder.length, _getAlignment(value.signature.value));
+    for (var i = builder.length; i < offset; i++) {
+      builder.addByte(0);
+    }
+
+    if (value is DBusBoolean) {
+      builder.addByte(value.value ? 0x01 : 0x00);
+    } else if (value is DBusByte) {
+      _writeUint8(builder, value.value);
+    } else if (value is DBusInt16) {
+      var buffer = Uint8List(2).buffer;
+      ByteData.view(buffer).setInt16(0, value.value, endian);
+      builder.add(buffer.asUint8List());
+    } else if (value is DBusUint16) {
+      _writeUint16(builder, value.value, endian);
+    } else if (value is DBusInt32) {
+      var buffer = Uint8List(4).buffer;
+      ByteData.view(buffer).setInt32(0, value.value, endian);
+      builder.add(buffer.asUint8List());
+    } else if (value is DBusUint32) {
+      _writeUint32(builder, value.value, endian);
+    } else if (value is DBusInt64) {
+      var buffer = Uint8List(8).buffer;
+      ByteData.view(buffer).setInt64(0, value.value, endian);
+      builder.add(buffer.asUint8List());
+    } else if (value is DBusUint64) {
+      _writeUint64(builder, value.value, endian);
+    } else if (value is DBusDouble) {
+      var buffer = Uint8List(8).buffer;
+      ByteData.view(buffer).setFloat64(0, value.value, endian);
+      builder.add(buffer.asUint8List());
+    } else if (value is DBusString) {
+      builder.add(utf8.encode(value.value));
+      builder.addByte(0);
+    } else if (value is DBusObjectPath) {
+      builder.add(utf8.encode(value.value));
+      builder.addByte(0);
+    } else if (value is DBusSignature) {
+      builder.add(utf8.encode(value.value));
+      builder.addByte(0);
+    } else if (value is DBusVariant) {
+      _encode(builder, value.value, endian);
+      builder.addByte(0);
+      builder.add(utf8.encode(value.value.signature.value));
+    } else if (value is DBusMaybe) {
+      if (value.value != null) {
+        _encode(builder, value.value!, endian);
+      }
+    } else if (value is DBusStruct) {
+      _encodeStruct(builder, value.children, endian);
+    } else if (value is DBusArray) {
+      _encodeArray(builder, value.childSignature.value, value.children, endian);
+    } else if (value is DBusDict) {
+      _encodeDict(builder, value.keySignature.value, value.valueSignature.value,
+          value.children, endian);
+    } else {
+      throw ("Unsupported DBus type: '$value'");
+    }
+  }
+
+  void _encodeStruct(
+      BytesBuilder builder, List<DBusValue> values, Endian endian) {
+    var isVariable = false;
+    var endOffsets = <int>[];
+    var startOffset = builder.length;
+    for (var value in values) {
+      _encode(builder, value, endian);
+      if (value != values.last &&
+          _getElementSize(value.signature.value) == -1) {
+        isVariable = true;
+      }
+      endOffsets.add(builder.length - startOffset);
+    }
+
+    if (isVariable) {
+      // Calculate smallest size that can be used for offset values.
+      var dataLength = builder.length - startOffset;
+      var offsetSize = 1;
+      while (_getOffsetSize(dataLength + (values.length - 1) * offsetSize) !=
+          offsetSize) {
+        offsetSize *= 2;
+      }
+
+      for (var i = values.length - 2; i >= 0; i--) {
+        _writeOffset(builder, endOffsets[i], offsetSize, endian);
+      }
+    }
+  }
+
+  void _encodeArray(BytesBuilder builder, String childType,
+      List<DBusValue> values, Endian endian) {
+    var endOffsets = <int>[];
+    var startOffset = builder.length;
+    for (var value in values) {
+      _encode(builder, value, endian);
+      endOffsets.add(builder.length - startOffset);
+    }
+
+    // If the elements are of variable length, then each end position needs to recorded.
+    var isVariable = _getElementSize(childType) == -1;
+    if (isVariable) {
+      // Calculate smallest size that can be used for offset values.
+      var dataLength = builder.length - startOffset;
+      var offsetSize = 1;
+      while (_getOffsetSize(dataLength + values.length * offsetSize) !=
+          offsetSize) {
+        offsetSize *= 2;
+      }
+
+      // Write the end offsets of each element.
+      for (var i = 0; i < values.length; i++) {
+        _writeOffset(builder, endOffsets[i], offsetSize, endian);
+      }
+    }
+  }
+
+  void _encodeDict(BytesBuilder builder, String keyType, String valueType,
+      Map<DBusValue, DBusValue> values, Endian endian) {
+    var endOffsets = <int>[];
+    var startOffset = builder.length;
+    for (var entry in values.entries) {
+      _encodeStruct(builder, [entry.key, entry.value], endian);
+      endOffsets.add(builder.length - startOffset);
+    }
+
+    // If the elements are of variable length, then each end position needs to recorded.
+    var isVariable =
+        _getElementSize(keyType) == -1 || _getElementSize(valueType) == -1;
+    if (isVariable) {
+      // Calculate smallest size that can be used for offset values.
+      var dataLength = builder.length - startOffset;
+      var offsetSize = 1;
+      while (_getOffsetSize(dataLength + values.length * offsetSize) !=
+          offsetSize) {
+        offsetSize *= 2;
+      }
+
+      // Write the end offsets of each element.
+      for (var i = 0; i < values.length; i++) {
+        _writeOffset(builder, endOffsets[i], offsetSize, endian);
+      }
+    }
+  }
+
+  void _writeUint8(BytesBuilder builder, int value) {
+    builder.addByte(value);
+  }
+
+  void _writeUint16(BytesBuilder builder, int value, Endian endian) {
+    var buffer = Uint8List(2).buffer;
+    ByteData.view(buffer).setUint16(0, value, endian);
+    builder.add(buffer.asUint8List());
+  }
+
+  void _writeUint32(BytesBuilder builder, int value, Endian endian) {
+    var buffer = Uint8List(4).buffer;
+    ByteData.view(buffer).setUint32(0, value, endian);
+    builder.add(buffer.asUint8List());
+  }
+
+  void _writeUint64(BytesBuilder builder, int value, Endian endian) {
+    var buffer = Uint8List(8).buffer;
+    ByteData.view(buffer).setUint64(0, value, endian);
+    builder.add(buffer.asUint8List());
+  }
+
+  void _writeOffset(
+      BytesBuilder builder, int offset, int offsetSize, Endian endian) {
+    switch (offsetSize) {
+      case 1:
+        _writeUint8(builder, offset);
+        break;
+      case 2:
+        _writeUint16(builder, offset, endian);
+        break;
+      case 4:
+        _writeUint32(builder, offset, endian);
+        break;
+      case 8:
+        _writeUint64(builder, offset, endian);
+        break;
+      default:
+        throw ('Unsupported offset size $offsetSize');
     }
   }
 
