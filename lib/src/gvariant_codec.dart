@@ -183,12 +183,17 @@ class GVariantCodec {
     for (var i = 0; i < childTypes.length; i++) {
       var start = _align(offset, _getAlignment(childTypes[i]));
       int end;
+      var offsetStart =
+          data.lengthInBytes - offsetSize * (childTypes.length - 1);
       if (i < childTypes.length - 1) {
         end = _getOffset(
             data, data.lengthInBytes - offsetSize * (i + 1), offsetSize,
             endian: endian);
+        if (end > offsetStart) {
+          throw ('Invalid element end offset in struct');
+        }
       } else {
-        end = data.lengthInBytes - (childTypes.length - 1) * offsetSize;
+        end = offsetStart;
       }
       children.add(decode(childTypes[i], ByteData.sublistView(data, start, end),
           endian: endian));
@@ -258,19 +263,26 @@ class GVariantCodec {
       var lastOffset = _getOffset(
           data, data.lengthInBytes - offsetSize, offsetSize,
           endian: endian);
+      var dataLength = data.lengthInBytes - lastOffset;
+      if (dataLength < 0 || dataLength % offsetSize != 0) {
+        throw ('Invalid element end offset in array');
+      }
 
       // Array size is the number of offsets after the last element.
-      arrayLength = (data.lengthInBytes - lastOffset) ~/ offsetSize;
+      arrayLength = dataLength ~/ offsetSize;
     } else {
       arrayLength = 0;
     }
 
     var children = <DBusValue>[];
     var start = 0;
+    var offsetStart = data.lengthInBytes - offsetSize * arrayLength;
     for (var i = 0; i < arrayLength; i++) {
-      var end = _getOffset(
-          data, data.lengthInBytes - offsetSize * (arrayLength - i), offsetSize,
+      var end = _getOffset(data, offsetStart + offsetSize * i, offsetSize,
           endian: endian);
+      if (end > offsetStart) {
+        throw ('Invalid element end offset in array');
+      }
       var childData = ByteData.sublistView(data, start, end);
       children.add(decode(childType, childData, endian: endian));
       start = end;
