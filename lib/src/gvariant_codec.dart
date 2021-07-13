@@ -3,41 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 
-// FIXME: Move into dbus.dart
-class DBusMaybe extends DBusValue {
-  /// Signature of the value this maybe contains.
-  final DBusSignature valueSignature;
-
-  /// The value contained in this maybe.
-  final DBusValue? value;
-
-  const DBusMaybe(this.valueSignature, this.value);
-
-  @override
-  DBusSignature get signature {
-    return DBusSignature('m');
-  }
-
-  @override
-  dynamic toNative() {
-    return value?.toNative();
-  }
-
-  @override
-  bool operator ==(other) =>
-      other is DBusMaybe &&
-      other.valueSignature == valueSignature &&
-      other.value == value;
-
-  @override
-  int get hashCode => valueSignature.hashCode | value.hashCode;
-
-  @override
-  String toString() {
-    return 'DBusMaybe($valueSignature, ${value?.toString()})';
-  }
-}
-
 class GVariantCodec {
   GVariantCodec();
 
