@@ -228,7 +228,7 @@ class GVariantCodec {
       children.add(decode(childType, childData, endian: endian));
     }
 
-    return DBusArray(DBusSignature(childType), []);
+    return DBusArray(DBusSignature(childType), children);
   }
 
   DBusArray _parseGVariantVariableArray(String childType, ByteData data,
