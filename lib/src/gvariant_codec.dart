@@ -6,6 +6,7 @@ import 'package:dbus/dbus.dart';
 class GVariantCodec {
   GVariantCodec();
 
+  /// Encode a value using GVariant binary format.
   Uint8List encode(DBusValue value, {required Endian endian}) {
     var builder = BytesBuilder();
     _encode(builder, value, endian);
@@ -657,7 +658,13 @@ class GVariantCodec {
         throw ArgumentError.value(value, 'value', 'Array missing child type');
       }
       return _validateType(value, index + 1);
-    } else if ('ybnqiuxtdsogvm'.contains(value[index])) {
+    } else if (value.startsWith('m', index)) {
+      // Maybe.
+      if (index >= value.length - 1) {
+        throw ArgumentError.value(value, 'value', 'Maybe missing child type');
+      }
+      return _validateType(value, index + 1);
+    } else if ('ybnqiuxtdsogv'.contains(value[index])) {
       return index;
     } else {
       throw ArgumentError.value(

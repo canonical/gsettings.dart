@@ -65,7 +65,7 @@ class GSettingsSchema {
 
     // Lookup user value in DConf.
     var client = DConfClient();
-    var value = await client.lookup(path + name);
+    var value = await client.read(path + name);
     await client.close();
     if (value != null) {
       return value;

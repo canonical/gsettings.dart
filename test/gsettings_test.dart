@@ -696,7 +696,7 @@ void main() {
         if (name.endsWith('/')) {
           await listDir(fullName);
         } else {
-          var value = await client.lookup(fullName);
+          var value = await client.read(fullName);
           print('$fullName = $value');
         }
       }
