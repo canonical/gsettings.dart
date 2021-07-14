@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:dbus/dbus.dart';
 import 'package:xdg_directories/xdg_directories.dart';
 
-import 'gvariant_codec.dart';
+import 'gvariant_binary_codec.dart';
 import 'gvariant_database.dart';
 
 /// Message received when DConf notifies changes.
@@ -75,7 +75,7 @@ class DConfClient {
             DBusString(key),
             DBusMaybe(DBusSignature('v'),
                 value != null ? DBusVariant(value) : null))));
-    var codec = GVariantCodec();
+    var codec = GVariantBinaryCodec();
     var result = await _writer.callMethod('ca.desrt.dconf.Writer', 'Change',
         [DBusArray.byte(codec.encode(changeset, endian: Endian.host))],
         replySignature: DBusSignature('s'));

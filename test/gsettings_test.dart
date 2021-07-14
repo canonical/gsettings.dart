@@ -3,7 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 import 'package:gsettings/gsettings.dart';
-import 'package:gsettings/src/gvariant_codec.dart';
+import 'package:gsettings/src/gvariant_binary_codec.dart';
+import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
 
 class MockDConfServer extends DBusClient {
@@ -15,8 +16,93 @@ class MockDConfServer extends DBusClient {
 }
 
 void main() {
-  test('gvariant encode', () async {
-    var codec = GVariantCodec();
+  test('gvariant text encode', () async {
+    var codec = GVariantTextCodec();
+
+    expect(codec.encode(DBusBoolean(false)), equals('false'));
+    expect(codec.encode(DBusBoolean(true)), equals('true'));
+
+    expect(codec.encode(DBusByte(0x00)), equals('0x00'));
+    expect(codec.encode(DBusByte(0xde)), equals('0xde'));
+    expect(codec.encode(DBusByte(0xff)), equals('0xff'));
+
+    expect(codec.encode(DBusInt16(0)), equals('0'));
+    expect(codec.encode(DBusInt16(32767)), equals('32767'));
+    expect(codec.encode(DBusInt16(-1)), equals('-1'));
+    expect(codec.encode(DBusInt16(-32768)), equals('-32768'));
+
+    expect(codec.encode(DBusUint16(0)), equals('0'));
+    expect(codec.encode(DBusUint16(65535)), equals('65535'));
+
+    expect(codec.encode(DBusInt32(0)), equals('0'));
+    expect(codec.encode(DBusInt32(2147483647)), equals('2147483647'));
+    expect(codec.encode(DBusInt32(-1)), equals('-1'));
+    expect(codec.encode(DBusInt32(-2147483648)), equals('-2147483648'));
+
+    expect(codec.encode(DBusUint32(0)), equals('0'));
+    expect(codec.encode(DBusUint32(4294967295)), equals('4294967295'));
+
+    expect(codec.encode(DBusInt64(0)), equals('0'));
+    expect(codec.encode(DBusInt64(9223372036854775807)),
+        equals('9223372036854775807'));
+    expect(codec.encode(DBusInt64(-1)), equals('-1'));
+    expect(codec.encode(DBusInt64(-9223372036854775808)),
+        equals('-9223372036854775808'));
+
+    expect(codec.encode(DBusUint64(0)), equals('0'));
+    //FIXMEexpect(codec.encode(DBusUint64(0xffffffffffffffff)), equals('18446744073709551615'));
+
+    expect(codec.encode(DBusDouble(0)), equals('0.0'));
+    expect(codec.encode(DBusDouble(3.14159)), equals('3.14159'));
+    expect(codec.encode(DBusDouble(-3.14159)), equals('-3.14159'));
+
+    expect(codec.encode(DBusString('')), equals("''"));
+    expect(codec.encode(DBusString('hello world')), equals("'hello world'"));
+    expect(
+        codec.encode(DBusString("hello 'world'")), equals('"hello \'world\'"'));
+    expect(
+        codec.encode(DBusString('hello "world"')), equals("'hello \"world\"'"));
+    expect(codec.encode(DBusString('\'hello\' "world"')),
+        equals('"\'hello\' \\"world\\""'));
+    expect(codec.encode(DBusString(r'hello\world')), equals(r"'hello\\world'"));
+    expect(codec.encode(DBusString('\u0007\b\f\n\r\t\v')),
+        equals(r"'\a\b\f\n\r\t\v'"));
+
+    expect(codec.encode(DBusObjectPath('/')), equals("objectpath '/'"));
+    expect(codec.encode(DBusObjectPath('/com/example/Foo')),
+        equals("objectpath '/com/example/Foo'"));
+
+    expect(codec.encode(DBusSignature('')), equals("signature ''"));
+    expect(codec.encode(DBusSignature('a{sv}')), equals("signature 'a{sv}'"));
+
+    expect(codec.encode(DBusVariant(DBusInt32(42))), equals('<42>'));
+    expect(codec.encode(DBusVariant(DBusString('hello'))), equals("<'hello'>"));
+
+    expect(
+        codec.encode(DBusMaybe(DBusSignature('i'), null)), equals('nothing'));
+    expect(codec.encode(DBusMaybe(DBusSignature('i'), DBusInt32(42))),
+        equals('42'));
+
+    expect(codec.encode(DBusStruct([])), equals('()'));
+    expect(codec.encode(DBusStruct([DBusInt32(42), DBusString('hello')])),
+        equals("(42, 'hello')"));
+
+    expect(codec.encode(DBusArray.int32([])), equals('[]'));
+    expect(codec.encode(DBusArray.int32([1, 2, 3])), equals('[1, 2, 3]'));
+
+    expect(codec.encode(DBusDict(DBusSignature('s'), DBusSignature('i'), {})),
+        equals('{}'));
+    expect(
+        codec.encode(DBusDict(DBusSignature('s'), DBusSignature('i'), {
+          DBusString('one'): DBusInt32(1),
+          DBusString('two'): DBusInt32(2),
+          DBusString('three'): DBusInt32(3)
+        })),
+        equals("{'one': 1, 'two': 2, 'three': 3}"));
+  });
+
+  test('gvariant binary encode', () async {
+    var codec = GVariantBinaryCodec();
 
     expect(codec.encode(DBusBoolean(false), endian: Endian.little),
         equals([0x00]));
@@ -305,8 +391,8 @@ void main() {
         ]));
   });
 
-  test('gvariant decode', () async {
-    var codec = GVariantCodec();
+  test('gvariant binary decode', () async {
+    var codec = GVariantBinaryCodec();
 
     ByteData makeBuffer(List<int> data) {
       return ByteData.view(Uint8List.fromList(data).buffer);

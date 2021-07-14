@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 
-import 'gvariant_codec.dart';
+import 'gvariant_binary_codec.dart';
 
 class GVariantDatabase {
   final String path;
@@ -104,7 +104,7 @@ class GVariantDatabaseTable {
     if (value == null) {
       return null;
     }
-    var codec = GVariantCodec();
+    var codec = GVariantBinaryCodec();
     return (codec.decode('v', value, endian: endian) as DBusVariant).value;
   }
 

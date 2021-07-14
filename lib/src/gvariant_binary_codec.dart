@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 
-class GVariantCodec {
-  GVariantCodec();
+class GVariantBinaryCodec {
+  GVariantBinaryCodec();
 
   /// Encode a value using GVariant binary format.
   Uint8List encode(DBusValue value, {required Endian endian}) {
