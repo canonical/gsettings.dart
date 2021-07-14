@@ -171,7 +171,11 @@ class GVariantCodec {
       builder.add(utf8.encode(value.value.signature.value));
     } else if (value is DBusMaybe) {
       if (value.value != null) {
+        var childSize = _getElementSize(value.valueSignature.value);
         _encode(builder, value.value!, endian);
+        if (childSize == -1) {
+          builder.addByte(0);
+        }
       }
     } else if (value is DBusStruct) {
       _encodeStruct(builder, value.children, endian);
@@ -190,26 +194,45 @@ class GVariantCodec {
     var isVariable = false;
     var endOffsets = <int>[];
     var startOffset = builder.length;
+    var alignment = 0;
     for (var value in values) {
       _encode(builder, value, endian);
-      if (value != values.last &&
-          _getElementSize(value.signature.value) == -1) {
+
+      // Variable sized elements will have end offsets appended.
+      var valueSize = _getElementSize(value.signature.value);
+      if (value != values.last && valueSize == -1) {
         isVariable = true;
+        endOffsets.add(builder.length - startOffset);
       }
-      endOffsets.add(builder.length - startOffset);
+
+      // Struct is alignent to largest element size.
+      if (valueSize == -1) {
+        alignment = -1;
+      } else if (alignment != -1 && valueSize > alignment) {
+        alignment = valueSize;
+      }
     }
 
     if (isVariable) {
       // Calculate smallest size that can be used for offset values.
       var dataLength = builder.length - startOffset;
       var offsetSize = 1;
-      while (_getOffsetSize(dataLength + (values.length - 1) * offsetSize) !=
+      while (_getOffsetSize(dataLength + endOffsets.length * offsetSize) !=
           offsetSize) {
         offsetSize *= 2;
       }
 
-      for (var i = values.length - 2; i >= 0; i--) {
+      // Append en offsets of variable sized elements.
+      for (var i = endOffsets.length - 1; i >= 0; i--) {
         _writeOffset(builder, endOffsets[i], offsetSize, endian);
+      }
+    } else {
+      // Fixed structures must be padded to their alignment.
+      if (alignment > 0) {
+        var offset = _align(builder.length, alignment);
+        for (var i = builder.length; i < offset; i++) {
+          builder.addByte(0);
+        }
       }
     }
   }
@@ -246,7 +269,7 @@ class GVariantCodec {
     var endOffsets = <int>[];
     var startOffset = builder.length;
     for (var entry in values.entries) {
-      _encodeStruct(builder, [entry.key, entry.value], endian);
+      _encode(builder, DBusStruct([entry.key, entry.value]), endian);
       endOffsets.add(builder.length - startOffset);
     }
 
@@ -368,22 +391,27 @@ class GVariantCodec {
       List<String> childTypes, ByteData data,
       {required Endian endian}) {
     var offsetSize = _getOffsetSize(data.lengthInBytes);
+    var dataEnd = data.lengthInBytes;
     var children = <DBusValue>[];
     var offset = 0;
     for (var i = 0; i < childTypes.length; i++) {
+      var size = _getElementSize(childTypes[i]);
       var start = _align(offset, _getAlignment(childTypes[i]));
       int end;
-      var offsetStart =
-          data.lengthInBytes - offsetSize * (childTypes.length - 1);
-      if (i < childTypes.length - 1) {
-        end = _getOffset(
-            data, data.lengthInBytes - offsetSize * (i + 1), offsetSize,
-            endian: endian);
-        if (end > offsetStart) {
+      if (size > 0) {
+        // Fixed elements
+        end = start + size;
+      } else if (i == childTypes.length - 1) {
+        // Last variable element ends where the data ends.
+        end = dataEnd;
+      } else {
+        // Read the offset from the end of the data.
+        end =
+            _getOffset(data, dataEnd - offsetSize, offsetSize, endian: endian);
+        if (end > dataEnd) {
           throw ('Invalid element end offset in struct');
         }
-      } else {
-        end = offsetStart;
+        dataEnd -= offsetSize;
       }
       children.add(decode(childTypes[i], ByteData.sublistView(data, start, end),
           endian: endian));
@@ -467,6 +495,7 @@ class GVariantCodec {
     var children = <DBusValue>[];
     var start = 0;
     var offsetStart = data.lengthInBytes - offsetSize * arrayLength;
+    var childAlignment = _getAlignment(childType);
     for (var i = 0; i < arrayLength; i++) {
       var end = _getOffset(data, offsetStart + offsetSize * i, offsetSize,
           endian: endian);
@@ -475,7 +504,7 @@ class GVariantCodec {
       }
       var childData = ByteData.sublistView(data, start, end);
       children.add(decode(childType, childData, endian: endian));
-      start = end;
+      start = _align(end, childAlignment);
     }
 
     return DBusArray(DBusSignature(childType), children);
@@ -483,8 +512,20 @@ class GVariantCodec {
 
   DBusMaybe _parseGVariantMaybe(String childType, ByteData data,
       {required Endian endian}) {
-    var value =
-        data.lengthInBytes > 0 ? decode(childType, data, endian: endian) : null;
+    DBusValue? value;
+    if (data.lengthInBytes > 0) {
+      ByteData childData;
+      var childSize = _getElementSize(childType);
+      if (childSize == -1) {
+        if (data.getUint8(data.lengthInBytes - 1) != 0) {
+          throw ('Invalid padding byte on maybe GVariant');
+        }
+        childData = ByteData.sublistView(data, 0, data.lengthInBytes - 1);
+      } else {
+        childData = data;
+      }
+      value = decode(childType, childData, endian: endian);
+    }
     return DBusMaybe(DBusSignature(childType), value);
   }
 

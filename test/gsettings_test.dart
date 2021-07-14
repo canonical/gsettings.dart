@@ -167,14 +167,25 @@ void main() {
         codec.encode(DBusVariant(DBusString('hello')), endian: Endian.little),
         equals([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x00, 0x73]));
 
+    // Empty maybe
     expect(
         codec.encode(DBusMaybe(DBusSignature('s'), null),
             endian: Endian.little),
         equals([]));
     expect(
+        codec.encode(DBusMaybe(DBusSignature('i'), null),
+            endian: Endian.little),
+        equals([]));
+    // Variable length value, has null padding.
+    expect(
         codec.encode(DBusMaybe(DBusSignature('s'), DBusString('hello')),
             endian: Endian.little),
-        equals([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00]));
+        equals([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x00]));
+    // Fixed length value.
+    expect(
+        codec.encode(DBusMaybe(DBusSignature('i'), DBusInt32(42)),
+            endian: Endian.little),
+        equals([0x2a, 0x00, 0x00, 0x00]));
 
     expect(codec.encode(DBusStruct([]), endian: Endian.little), equals([]));
     expect(
@@ -189,7 +200,7 @@ void main() {
     expect(
         codec.encode(DBusStruct([DBusInt32(-1), DBusByte(42)]),
             endian: Endian.little),
-        equals([0xff, 0xff, 0xff, 0xff, 0x2a]));
+        equals([0xff, 0xff, 0xff, 0xff, 0x2a, 0x00, 0x00, 0x00]));
     // First element is fixed size, second is variable - no offsets required
     expect(
         codec.encode(DBusStruct([DBusByte(42), DBusString('hello')]),
@@ -277,12 +288,12 @@ void main() {
           0x00,
           0x00,
           0x04,
+          0x00,
+          0x00,
+          0x00,
           0x74,
           0x77,
           0x6f,
-          0x00,
-          0x00,
-          0x00,
           0x00,
           0x02,
           0x00,
@@ -527,13 +538,22 @@ void main() {
             endian: Endian.little),
         equals(DBusVariant(DBusString('hello'))));
 
+    // Empty maybe.
     expect(codec.decode('ms', makeBuffer([]), endian: Endian.little),
         equals(DBusMaybe(DBusSignature('s'), null)));
+    expect(codec.decode('mi', makeBuffer([]), endian: Endian.little),
+        equals(DBusMaybe(DBusSignature('i'), null)));
+    // Variable length value, has null padding.
     expect(
-        codec.decode('ms', makeBuffer([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00]),
+        codec.decode(
+            'ms', makeBuffer([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0x00]),
             endian: Endian.little),
         equals(DBusMaybe(DBusSignature('s'), DBusString('hello'))));
-    expect(codec.encode(DBusStruct([]), endian: Endian.little), equals([]));
+    // Fixed length value.
+    expect(
+        codec.decode('mi', makeBuffer([0x2a, 0x00, 0x00, 0x00]),
+            endian: Endian.little),
+        equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
 
     expect(
         codec.decode('(yy)', makeBuffer([0xde, 0xad]), endian: Endian.little),
@@ -545,7 +565,8 @@ void main() {
             endian: Endian.little),
         equals(DBusStruct([DBusByte(42), DBusInt32(-1)])));
     expect(
-        codec.decode('(iy)', makeBuffer([0xff, 0xff, 0xff, 0xff, 0x2a]),
+        codec.decode('(iy)',
+            makeBuffer([0xff, 0xff, 0xff, 0xff, 0x2a, 0x00, 0x00, 0x00]),
             endian: Endian.little),
         equals(DBusStruct([DBusInt32(-1), DBusByte(42)])));
     // First element is fixed size, second is variable - no offsets required
@@ -636,22 +657,20 @@ void main() {
               0x00,
               0x00,
               0x04,
-
+              0x00,
+              0x00,
+              0x00,
               0x74,
               0x77,
               0x6f,
-              0x00,
-              0x00,
-              0x00,
               0x00,
               0x02,
               0x00,
               0x00,
               0x00,
               0x04,
-
               0x09,
-              0x15              
+              0x15
             ]),
             endian: Endian.little),
         equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {
