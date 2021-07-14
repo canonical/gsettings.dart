@@ -75,9 +75,19 @@ class GSettingsSchema {
     return (schemaEntry as DBusStruct).children[0];
   }
 
-  /// Sets the key with [name] to [value].
-  Future<void> set(String name, DBusValue value) async {
-    throw ('Not implemented');
+  /// Sets keys in the schema.
+  Future<void> set(Map<String, DBusValue> values) async {
+    var table = await _load();
+    var pathValue = table.lookup('.path');
+    if (pathValue == null) {
+      throw ('Unable to determine path for schema ${this.name}');
+    }
+    var path = (pathValue as DBusString).value;
+
+    var client = DConfClient();
+    await client
+        .write(values.map((name, value) => MapEntry(path + name, value)));
+    await client.close();
   }
 
   // Get the database entry for this schema.
