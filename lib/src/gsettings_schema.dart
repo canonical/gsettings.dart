@@ -80,7 +80,7 @@ class GSettingsSchema {
     var table = await _load();
     var pathValue = table.lookup('.path');
     if (pathValue == null) {
-      throw ('Unable to determine path for schema ${this.name}');
+      throw ('Unable to determine path for schema $name');
     }
     var path = (pathValue as DBusString).value;
 
@@ -94,7 +94,6 @@ class GSettingsSchema {
   Future<GVariantDatabaseTable> _load() async {
     for (var dir in _getSchemaDirs()) {
       var database = GVariantDatabase(dir.path + '/gschemas.compiled');
-      GVariantDatabaseTable table;
       try {
         var table = await database.lookupTable(name);
         if (table != null) {
