@@ -426,9 +426,6 @@ class GVariantTextCodec {
 
   DBusDict _decodeDict(String type, _DecodeBuffer buffer) {
     var signatures = DBusSignature(type.substring(2, type.length - 1)).split();
-    if (signatures.length != 2) {
-      throw 'Invalid dict type: $type';
-    }
     var keyType = signatures[0].value;
     var valueType = signatures[1].value;
     if (!buffer.consume('{')) {

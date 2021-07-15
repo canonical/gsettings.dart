@@ -340,17 +340,11 @@ class GVariantBinaryCodec {
     if (!type.startsWith('(') || !type.endsWith(')')) {
       throw ('Invalid struct type: $type');
     }
-    var offset = 1;
-    var childTypes = <String>[];
-    var childSizes = <int>[];
-    while (offset < type.length - 1) {
-      var start = offset;
-      var end = _validateType(type, start);
-      var childType = type.substring(start, end + 1);
-      childTypes.add(childType);
-      childSizes.add(_getElementSize(childType));
-      offset = end + 1;
-    }
+    var childTypes = DBusSignature(type.substring(1, type.length - 1))
+        .split()
+        .map((s) => s.value)
+        .toList();
+    var childSizes = childTypes.map((type) => _getElementSize(type)).toList();
 
     // Check if the sizes of the elements can be determined before parsing.
     // The last element can be variable, as it takes up the remaining space.
@@ -427,15 +421,12 @@ class GVariantBinaryCodec {
     if (!type.startsWith('a{') || !type.endsWith('}')) {
       throw ('Invalid dict type: $type');
     }
-    var keyStart = 2;
-    var keyEnd = _validateType(type, keyStart);
-    var keyType = type.substring(keyStart, keyEnd + 1);
-    var valueStart = keyEnd + 1;
-    var valueEnd = _validateType(type, valueStart);
-    var valueType = type.substring(valueStart, valueEnd + 1);
-    if (valueEnd != type.length - 2) {
-      throw ('Invalid dict type: $type');
-    }
+    var childTypes = DBusSignature(type.substring(2, type.length - 1))
+        .split()
+        .map((s) => s.value)
+        .toList();
+    var keyType = childTypes[0];
+    var valueType = childTypes[1];
     // Data is stored as an array, this could be optimised to avoid being unpacked and repacked as a dict.
     var array =
         _parseGVariantArray('($keyType$valueType)', data, endian: endian);
@@ -542,16 +533,16 @@ class GVariantBinaryCodec {
     }
 
     if (type.startsWith('(') || type.startsWith('{')) {
+      var childTypes = DBusSignature(type.substring(1, type.length - 1))
+          .split()
+          .map((s) => s.value);
       var size = 0;
-      var offset = 1;
-      while (offset < type.length - 1) {
-        var end = _validateType(type, offset) + 1;
-        var s = _getElementSize(type.substring(offset, end));
+      for (var type in childTypes) {
+        var s = _getElementSize(type);
         if (s < 0) {
           return -1;
         }
         size += s;
-        offset = end;
       }
       return size;
     }
@@ -585,15 +576,15 @@ class GVariantBinaryCodec {
       return _getAlignment(type.substring(1));
     }
     if (type.startsWith('(') || type.startsWith('{')) {
+      var childTypes = DBusSignature(type.substring(1, type.length - 1))
+          .split()
+          .map((s) => s.value);
       var alignment = 1;
-      var offset = 1;
-      while (offset < type.length - 1) {
-        var end = _validateType(type, offset) + 1;
-        var a = _getAlignment(type.substring(offset, end));
+      for (var type in childTypes) {
+        var a = _getAlignment(type);
         if (a > alignment) {
           alignment = a;
         }
-        offset = end;
       }
       return alignment;
     }
@@ -619,74 +610,6 @@ class GVariantBinaryCodec {
       default:
         throw ArgumentError.value(type, 'type', 'Unknown type');
     }
-  }
-
-  /// Check [value] contains a valid type and return the index of the end of the current child type.
-  int _validateType(String value, int index) {
-    if (value.startsWith('(', index)) {
-      // Struct.
-      var end = _findClosing(value, index, '(', ')');
-      if (end < 0) {
-        throw ArgumentError.value(
-            value, 'value', 'Struct missing closing parenthesis');
-      }
-      var childIndex = index + 1;
-      while (childIndex < end) {
-        childIndex = _validateType(value, childIndex) + 1;
-      }
-      return end;
-    } else if (value.startsWith('a{', index)) {
-      // Dict.
-      var end = _findClosing(value, index, '{', '}');
-      if (end < 0) {
-        throw ArgumentError.value(value, 'value', 'Dict missing closing brace');
-      }
-      var childIndex = index + 2;
-      var childCount = 0;
-      while (childIndex < end) {
-        childIndex = _validateType(value, childIndex) + 1;
-        childCount++;
-      }
-      if (childCount != 2) {
-        throw ArgumentError.value(
-            value, 'value', "Dict doesn't have correct number of child types");
-      }
-      return end;
-    } else if (value.startsWith('a', index)) {
-      // Array.
-      if (index >= value.length - 1) {
-        throw ArgumentError.value(value, 'value', 'Array missing child type');
-      }
-      return _validateType(value, index + 1);
-    } else if (value.startsWith('m', index)) {
-      // Maybe.
-      if (index >= value.length - 1) {
-        throw ArgumentError.value(value, 'value', 'Maybe missing child type');
-      }
-      return _validateType(value, index + 1);
-    } else if ('ybnqiuxtdsogv'.contains(value[index])) {
-      return index;
-    } else {
-      throw ArgumentError.value(
-          value, 'value', 'Type contains unknown characters');
-    }
-  }
-
-  /// Find the index int [value] where there is a [closeChar] that matches [openChar].
-  /// These characters nest.
-  int _findClosing(String value, int index, String openChar, String closeChar) {
-    var depth = 0;
-    for (var i = index; i < value.length; i++) {
-      if (value[i] == openChar) {
-        depth++;
-      } else if (value[i] == closeChar) {
-        depth--;
-        if (depth == 0) {
-          return i;
-        }
-      }
-    }
-    return -1;
   }
 
   int _getOffsetSize(int size) {
