@@ -67,6 +67,9 @@ void main() {
     expect(codec.encode(DBusString(r'hello\world')), equals(r"'hello\\world'"));
     expect(codec.encode(DBusString('\u0007\b\f\n\r\t\v')),
         equals(r"'\a\b\f\n\r\t\v'"));
+    expect(codec.encode(DBusString('\x9f')), equals(r"'\u009f'"));
+    expect(codec.encode(DBusString('\uffff')), equals(r"'\uffff'"));
+    expect(codec.encode(DBusString('\u{100000}')), equals(r"'\U00100000'"));
 
     expect(codec.encode(DBusObjectPath('/')), equals("objectpath '/'"));
     expect(codec.encode(DBusObjectPath('/com/example/Foo')),
@@ -154,6 +157,10 @@ void main() {
         equals(DBusString(r'hello\world')));
     expect(codec.decode('s', r"'\a\b\f\n\r\t\v'"),
         equals(DBusString('\u0007\b\f\n\r\t\v')));
+    expect(codec.decode('s', r"'\u009f'"), equals(DBusString('\x9f')));
+    expect(codec.decode('s', r"'\ue000'"), equals(DBusString('\ue000')));
+    expect(
+        codec.decode('s', r"'\U00100000'"), equals(DBusString('\u{100000}')));
   });
 
   test('gvariant binary encode', () async {
