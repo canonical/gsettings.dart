@@ -231,7 +231,7 @@ class GVariantTextCodec {
         } else if (buffer.consume('false')) {
           value = false;
         } else {
-          throw "Invalid boolean encoding";
+          throw 'Invalid boolean encoding';
         }
         return DBusBoolean(value);
       case 'y': // byte
@@ -254,12 +254,12 @@ class GVariantTextCodec {
         return DBusString(_decodeString(buffer));
       case 'o': // object path
         if (!buffer.consume('objectpath ')) {
-          throw "Invalid object path encoding";
+          throw 'Invalid object path encoding';
         }
         return DBusObjectPath(_decodeString(buffer));
       case 'g': // signature
         if (!buffer.consume('signature ')) {
-          throw "Invalid signature encoding";
+          throw 'Invalid signature encoding';
         }
         return DBusSignature(_decodeString(buffer));
       default:
@@ -431,7 +431,6 @@ class GVariantTextCodec {
     if (!buffer.consume('{')) {
       throw 'Missing start of dict';
     }
-    var childType = type.substring(1);
     var children = <DBusValue, DBusValue>{};
     var first = true;
     while (!buffer.isEmpty) {

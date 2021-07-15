@@ -175,14 +175,14 @@ void main() {
     expect(codec.decode('mi', '42'),
         equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
 
-    expect(codec.decode('()', "()"), equals(DBusStruct([])));
+    expect(codec.decode('()', '()'), equals(DBusStruct([])));
     expect(codec.decode('(is)', "(42, 'hello')"),
         equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
 
-    expect(codec.decode('ai', "[]"), equals(DBusArray.int32([])));
-    expect(codec.decode('ai', "[1, 2, 3]"), equals(DBusArray.int32([1, 2, 3])));
+    expect(codec.decode('ai', '[]'), equals(DBusArray.int32([])));
+    expect(codec.decode('ai', '[1, 2, 3]'), equals(DBusArray.int32([1, 2, 3])));
 
-    expect(codec.decode('a{si}', "{}"),
+    expect(codec.decode('a{si}', '{}'),
         equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {})));
     expect(
         codec.decode('a{si}', "{'one': 1, 'two': 2, 'three': 3}"),
