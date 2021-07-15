@@ -65,6 +65,7 @@ void main() {
     expect(codec.encode(DBusString('\'hello\' "world"')),
         equals('"\'hello\' \\"world\\""'));
     expect(codec.encode(DBusString(r'hello\world')), equals(r"'hello\\world'"));
+    expect(codec.encode(DBusString('😄🙃🤪🧐')), equals("'😄🙃🤪🧐'"));
     expect(codec.encode(DBusString('\u0007\b\f\n\r\t\v')),
         equals(r"'\a\b\f\n\r\t\v'"));
     expect(codec.encode(DBusString('\x9f')), equals(r"'\u009f'"));
@@ -155,12 +156,43 @@ void main() {
         equals(DBusString('\'hello\' "world"')));
     expect(codec.decode('s', r"'hello\\world'"),
         equals(DBusString(r'hello\world')));
+    expect(codec.decode('s', "'😄🙃🤪🧐'"), equals(DBusString('😄🙃🤪🧐')));
     expect(codec.decode('s', r"'\a\b\f\n\r\t\v'"),
         equals(DBusString('\u0007\b\f\n\r\t\v')));
     expect(codec.decode('s', r"'\u009f'"), equals(DBusString('\x9f')));
     expect(codec.decode('s', r"'\ue000'"), equals(DBusString('\ue000')));
     expect(
         codec.decode('s', r"'\U00100000'"), equals(DBusString('\u{100000}')));
+
+    expect(codec.decode('o', "objectpath '/'"), equals(DBusObjectPath('/')));
+    expect(codec.decode('o', "objectpath '/com/example/Foo'"),
+        equals(DBusObjectPath('/com/example/Foo')));
+
+    expect(codec.decode('g', "signature ''"), equals(DBusSignature('')));
+    expect(
+        codec.decode('g', "signature 'a{sv}'"), equals(DBusSignature('a{sv}')));
+
+    expect(codec.decode('mi', 'nothing'),
+        equals(DBusMaybe(DBusSignature('i'), null)));
+    expect(codec.decode('mi', '42'),
+        equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
+
+    expect(codec.decode('()', "()"), equals(DBusStruct([])));
+    expect(codec.decode('(is)', "(42, 'hello')"),
+        equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
+
+    expect(codec.decode('ai', "[]"), equals(DBusArray.int32([])));
+    expect(codec.decode('ai', "[1, 2, 3]"), equals(DBusArray.int32([1, 2, 3])));
+
+    expect(codec.decode('a{si}', "{}"),
+        equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {})));
+    expect(
+        codec.decode('a{si}', "{'one': 1, 'two': 2, 'three': 3}"),
+        equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {
+          DBusString('one'): DBusInt32(1),
+          DBusString('two'): DBusInt32(2),
+          DBusString('three'): DBusInt32(3)
+        })));
   });
 
   test('gvariant binary encode', () async {

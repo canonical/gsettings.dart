@@ -12,48 +12,13 @@ class GVariantTextCodec {
 
   /// Parse a single GVariant value. [type] is expected to be a valid single type.
   DBusValue decode(String type, String data) {
-    switch (type) {
-      case 'b': // boolean
-        bool value;
-        if (data == 'true') {
-          value = true;
-        } else if (data == 'false') {
-          value = false;
-        } else {
-          throw "Invalid boolean encoding: '$data'";
-        }
-        return DBusBoolean(value);
-      case 'y': // byte
-        return DBusByte(int.parse(data));
-      case 'n': // int16
-        return DBusInt16(int.parse(data));
-      case 'q': // uint16
-        return DBusUint16(int.parse(data));
-      case 'i': // int32
-        return DBusInt32(int.parse(data));
-      case 'u': // uint32
-        return DBusUint32(int.parse(data));
-      case 'x': // int64
-        return DBusInt64(int.parse(data));
-      case 't': // uint64
-        return DBusUint64(int.parse(data));
-      case 'd': // double
-        return DBusDouble(double.parse(data));
-      case 's': // string
-        return DBusString(_decodeString(data));
-      case 'o': // object path
-        if (!data.startsWith('objectpath ')) {
-          throw "Invalid object path encoding: '$data'";
-        }
-        return DBusObjectPath(_decodeString(data.substring(11)));
-      case 'g': // signature
-        if (!data.startsWith('signature ')) {
-          throw "Invalid signature encoding: '$data'";
-        }
-        return DBusObjectPath(_decodeString(data.substring(11)));
-      default:
-        throw ("Unsupported GVariant type: '$type'");
+    var buffer = _DecodeBuffer(data);
+    var value = _decode(type, buffer);
+    buffer.consumeWhitespace();
+    if (!buffer.isEmpty) {
+      throw "Unexpected data after encoded GVariant: '${buffer.data.substring(buffer.offset)}'";
     }
+    return value;
   }
 
   void _encode(StringBuffer buffer, DBusValue value) {
@@ -231,72 +196,293 @@ class GVariantTextCodec {
     buffer.write(quote);
   }
 
-  String _decodeString(String data) {
-    var buffer = StringBuffer();
-    var quote = data[0];
+  DBusValue _decode(String type, _DecodeBuffer buffer) {
+    buffer.consumeWhitespace();
+
+    // struct
+    if (type.startsWith('(')) {
+      return _decodeStruct(type, buffer);
+    }
+
+    // array / dict
+    if (type.startsWith('a')) {
+      if (type.startsWith('a{')) {
+        return _decodeDict(type, buffer);
+      } else {
+        return _decodeArray(type, buffer);
+      }
+    }
+
+    // maybe
+    if (type.startsWith('m')) {
+      var childType = type.substring(1);
+      DBusValue? value;
+      if (!buffer.consume('nothing')) {
+        value = _decode(childType, buffer);
+      }
+      return DBusMaybe(DBusSignature(childType), value);
+    }
+
+    switch (type) {
+      case 'b': // boolean
+        bool value;
+        if (buffer.consume('true')) {
+          value = true;
+        } else if (buffer.consume('false')) {
+          value = false;
+        } else {
+          throw "Invalid boolean encoding";
+        }
+        return DBusBoolean(value);
+      case 'y': // byte
+        return DBusByte(_decodeInteger(buffer));
+      case 'n': // int16
+        return DBusInt16(_decodeInteger(buffer));
+      case 'q': // uint16
+        return DBusUint16(_decodeInteger(buffer));
+      case 'i': // int32
+        return DBusInt32(_decodeInteger(buffer));
+      case 'u': // uint32
+        return DBusUint32(_decodeInteger(buffer));
+      case 'x': // int64
+        return DBusInt64(_decodeInteger(buffer));
+      case 't': // uint64
+        return DBusUint64(_decodeInteger(buffer));
+      case 'd': // double
+        return DBusDouble(_decodeDouble(buffer));
+      case 's': // string
+        return DBusString(_decodeString(buffer));
+      case 'o': // object path
+        if (!buffer.consume('objectpath ')) {
+          throw "Invalid object path encoding";
+        }
+        return DBusObjectPath(_decodeString(buffer));
+      case 'g': // signature
+        if (!buffer.consume('signature ')) {
+          throw "Invalid signature encoding";
+        }
+        return DBusSignature(_decodeString(buffer));
+      default:
+        throw ("Unsupported GVariant type: '$type'");
+    }
+  }
+
+  int _decodeInteger(_DecodeBuffer buffer) {
+    var end = buffer.offset;
+    if (buffer.data.startsWith('-')) {
+      end++;
+    } else if (buffer.data.startsWith('0x')) {
+      end += 2;
+    }
+    while (end < buffer.data.length &&
+        '0123456789abcdefABCDEF'.contains(buffer.data[end])) {
+      end++;
+    }
+
+    var value = int.parse(buffer.data.substring(buffer.offset, end));
+    buffer.offset = end;
+    return value;
+  }
+
+  double _decodeDouble(_DecodeBuffer buffer) {
+    var end = buffer.offset;
+    if (buffer.data.startsWith('-', end)) {
+      end++;
+    }
+    while (
+        end < buffer.data.length && '0123456789'.contains(buffer.data[end])) {
+      end++;
+    }
+    if (buffer.data.startsWith('.', end)) {
+      end++;
+    }
+    while (
+        end < buffer.data.length && '0123456789'.contains(buffer.data[end])) {
+      end++;
+    }
+
+    var value = double.parse(buffer.data.substring(buffer.offset, end));
+    buffer.offset = end;
+    return value;
+  }
+
+  String _decodeString(_DecodeBuffer buffer) {
+    var output = StringBuffer();
+    if (buffer.isEmpty) {
+      throw 'No data for string';
+    }
+    var quote = buffer.data[buffer.offset];
     if (quote != "'" && quote != '"') {
-      throw 'Missing quote on string';
+      throw 'Missing start quote on string';
     }
-    if (data[data.length - 1] != quote) {
-      throw 'Missing end quote on string';
-    }
-    for (var i = 1; i < data.length - 1; i++) {
-      var c = data[i];
-      if (c == r'\') {
-        i++;
-        var remaining = data.length - 1 - i;
-        if (remaining <= 0) {
+    var end = buffer.offset + 1;
+    while (end < buffer.data.length) {
+      var c = buffer.data[end];
+      end++;
+      if (c == quote) {
+        buffer.offset = end;
+        return output.toString();
+      } else if (c == r'\') {
+        if (end == buffer.data.length - 1) {
           throw 'Escape character at end of string';
         }
-        switch (data[i]) {
+        var escapeChar = buffer.data[end];
+        end++;
+        switch (escapeChar) {
           case 'a': // bell
-            buffer.writeCharCode(7);
+            output.writeCharCode(7);
             break;
           case 'b': // backspace
-            buffer.writeCharCode(8);
+            output.writeCharCode(8);
             break;
           case 't': // tab
-            buffer.writeCharCode(9);
+            output.writeCharCode(9);
             break;
           case 'n': // newline
-            buffer.writeCharCode(10);
+            output.writeCharCode(10);
             break;
           case 'v': // vertical tab
-            buffer.writeCharCode(11);
+            output.writeCharCode(11);
             break;
           case 'f': // form feed
-            buffer.writeCharCode(12);
+            output.writeCharCode(12);
             break;
           case 'r': // carriage return
-            buffer.writeCharCode(13);
+            output.writeCharCode(13);
             break;
           case 'u':
-            if (remaining < 5) {
+            if (end + 4 > buffer.data.length) {
               throw ('Not enough space for unicode character');
             }
-            buffer.writeCharCode(
-                int.parse(data.substring(i + 1, i + 5), radix: 16));
-            i += 4;
+            output.writeCharCode(
+                int.parse(buffer.data.substring(end, end + 4), radix: 16));
+            end += 4;
             break;
           case 'U':
-            if (remaining < 9) {
+            if (end + 8 > buffer.data.length) {
               throw ('Not enough space for unicode character');
             }
-            buffer.writeCharCode(
-                int.parse(data.substring(i + 1, i + 9), radix: 16));
-            i += 8;
+            output.writeCharCode(
+                int.parse(buffer.data.substring(end, end + 8), radix: 16));
+            end += 8;
             break;
           case '"':
           case "'":
           case r'\':
           default:
-            buffer.write(data[i]);
+            output.write(escapeChar);
             break;
         }
       } else {
-        buffer.write(data[i]);
+        output.write(c);
       }
     }
-    return buffer.toString();
+
+    throw 'Missing end quote on string';
+  }
+
+  DBusStruct _decodeStruct(String type, _DecodeBuffer buffer) {
+    if (!buffer.consume('(')) {
+      throw 'Missing start of struct';
+    }
+    var signature = DBusSignature(type.substring(1, type.length - 1));
+    var children = <DBusValue>[];
+    var first = true;
+    for (var childSignature in signature.split()) {
+      if (!first && !buffer.consume(',')) {
+        throw ('Missing comma between struct elements');
+      }
+      first = false;
+      buffer.consumeWhitespace();
+      children.add(_decode(childSignature.value, buffer));
+    }
+    if (!buffer.consume(')')) {
+      throw 'Missing end of struct';
+    }
+    return DBusStruct(children);
+  }
+
+  DBusArray _decodeArray(String type, _DecodeBuffer buffer) {
+    if (!buffer.consume('[')) {
+      throw 'Missing start of array';
+    }
+    var childType = type.substring(1);
+    var children = <DBusValue>[];
+    var first = true;
+    while (!buffer.isEmpty) {
+      if (buffer.consume(']')) {
+        return DBusArray(DBusSignature(childType), children);
+      }
+
+      if (!first && !buffer.consume(',')) {
+        throw ('Missing comma between array elements');
+      }
+      first = false;
+      buffer.consumeWhitespace();
+      children.add(_decode(childType, buffer));
+    }
+    throw 'Missing end of array';
+  }
+
+  DBusDict _decodeDict(String type, _DecodeBuffer buffer) {
+    var signatures = DBusSignature(type.substring(2, type.length - 1)).split();
+    if (signatures.length != 2) {
+      throw 'Invalid dict type: $type';
+    }
+    var keyType = signatures[0].value;
+    var valueType = signatures[1].value;
+    if (!buffer.consume('{')) {
+      throw 'Missing start of dict';
+    }
+    var childType = type.substring(1);
+    var children = <DBusValue, DBusValue>{};
+    var first = true;
+    while (!buffer.isEmpty) {
+      if (buffer.consume('}')) {
+        return DBusDict(
+            DBusSignature(keyType), DBusSignature(valueType), children);
+      }
+
+      if (!first && !buffer.consume(',')) {
+        throw ('Missing comma between dict elements');
+      }
+      first = false;
+      buffer.consumeWhitespace();
+
+      var key = _decode(keyType, buffer);
+      buffer.consumeWhitespace();
+      if (!first && !buffer.consume(':')) {
+        throw ('Missing colon between dict key and value');
+      }
+      buffer.consumeWhitespace();
+      var value = _decode(valueType, buffer);
+
+      children[key] = value;
+    }
+    throw 'Missing end of dict';
+  }
+}
+
+class _DecodeBuffer {
+  String data;
+  int offset = 0;
+
+  _DecodeBuffer(this.data);
+
+  bool get isEmpty => offset >= data.length;
+
+  void consumeWhitespace() {
+    while (offset < data.length && data.startsWith(' ', offset)) {
+      offset++;
+    }
+  }
+
+  bool consume(String value) {
+    if (!data.startsWith(value, offset)) {
+      return false;
+    }
+
+    offset += value.length;
+    return true;
   }
 }
