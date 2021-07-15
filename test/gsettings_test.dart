@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
-import 'package:gsettings/gsettings.dart';
-import 'package:gsettings/src/dconf_client.dart';
 import 'package:gsettings/src/gvariant_binary_codec.dart';
 import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
@@ -858,42 +855,5 @@ void main() {
           DBusString('one'): DBusInt32(1),
           DBusString('two'): DBusInt32(2)
         })));
-  });
-
-  test('dconf read all', () async {
-    var server = DBusServer();
-    var clientAddress =
-        await server.listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
-
-    var dconf = MockDConfServer(clientAddress);
-    await dconf.start();
-
-    var client = DConfClient(bus: DBusClient(clientAddress));
-
-    Future<void> listDir(String dir) async {
-      var names = await client.list(dir);
-      for (var name in names) {
-        var fullName = dir + name;
-        if (name.endsWith('/')) {
-          await listDir(fullName);
-        } else {
-          var value = await client.read(fullName);
-          print('$fullName = $value');
-        }
-      }
-    }
-
-    await listDir('/');
-
-    await client.close();
-  });
-
-  test('list schemas', () async {
-    print(await listGSettingss());
-  });
-
-  test('list schema', () async {
-    var schema = GSettings('org.gnome.desktop.sound');
-    print(await schema.list());
   });
 }
