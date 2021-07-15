@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 import 'package:gsettings/gsettings.dart';
+import 'package:gsettings/src/dconf_client.dart';
 import 'package:gsettings/src/gvariant_binary_codec.dart';
 import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
@@ -888,11 +889,11 @@ void main() {
   });
 
   test('list schemas', () async {
-    print(await listGSettingsSchemas());
+    print(await listGSettingss());
   });
 
   test('list schema', () async {
-    var schema = GSettingsSchema('org.gnome.desktop.sound');
+    var schema = GSettings('org.gnome.desktop.sound');
     print(await schema.list());
   });
 }

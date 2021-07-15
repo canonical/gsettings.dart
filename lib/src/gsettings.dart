@@ -28,19 +28,19 @@ List<Directory> _getSchemaDirs() {
 }
 
 /// Get the names of the installed schemas.
-Future<List<String>> listGSettingsSchemas() async {
+Future<List<String>> listGSettingss() async {
   var database =
       GVariantDatabase('/usr/share/glib-2.0/schemas/gschemas.compiled');
   return database.list(dir: '');
 }
 
 /// A GSettings schema.
-class GSettingsSchema {
+class GSettings {
   /// The name of this schema, e.g. 'org.gnome.desktop.interface'.
   final String name;
 
   /// Create a new GSettings schema with [name].
-  GSettingsSchema(this.name);
+  GSettings(this.name);
 
   /// Gets the keys in this schema.
   Future<List<String>> list() async {
