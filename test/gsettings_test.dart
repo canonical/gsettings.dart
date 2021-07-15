@@ -101,6 +101,61 @@ void main() {
         equals("{'one': 1, 'two': 2, 'three': 3}"));
   });
 
+  test('gvariant text decode', () async {
+    var codec = GVariantTextCodec();
+
+    expect(codec.decode('b', 'false'), equals(DBusBoolean(false)));
+    expect(codec.decode('b', 'true'), equals(DBusBoolean(true)));
+
+    expect(codec.decode('y', '0x00'), equals(DBusByte(0x00)));
+    expect(codec.decode('y', '0xde'), equals(DBusByte(0xde)));
+    expect(codec.decode('y', '0xff'), equals(DBusByte(0xff)));
+
+    expect(codec.decode('n', '0'), equals(DBusInt16(0)));
+    expect(codec.decode('n', '32767'), equals(DBusInt16(32767)));
+    expect(codec.decode('n', '-1'), equals(DBusInt16(-1)));
+    expect(codec.decode('n', '-32768'), equals(DBusInt16(-32768)));
+
+    expect(codec.decode('q', '0'), equals(DBusUint16(0)));
+    expect(codec.decode('q', '65535'), equals(DBusUint16(65535)));
+
+    expect(codec.decode('i', '0'), equals(DBusInt32(0)));
+    expect(codec.decode('i', '2147483647'), equals(DBusInt32(2147483647)));
+    expect(codec.decode('i', '-1'), equals(DBusInt32(-1)));
+    expect(codec.decode('i', '-2147483648'), equals(DBusInt32(-2147483648)));
+
+    expect(codec.decode('u', '0'), equals(DBusUint32(0)));
+    expect(codec.decode('u', '4294967295'), equals(DBusUint32(4294967295)));
+
+    expect(codec.decode('x', '0'), equals(DBusInt64(0)));
+    expect(codec.decode('x', '9223372036854775807'),
+        equals(DBusInt64(9223372036854775807)));
+    expect(codec.decode('x', '-1'), equals(DBusInt64(-1)));
+    expect(codec.decode('x', '-9223372036854775808'),
+        equals(DBusInt64(-9223372036854775808)));
+
+    expect(codec.decode('t', '0'), equals(DBusUint64(0)));
+    //expect(codec.decode('t', '18446744073709551615'), equals(DBusUint64(0xffffffffffffffff)));
+
+    expect(codec.decode('d', '0.0'), equals(DBusDouble(0)));
+    expect(codec.decode('d', '3.14159'), equals(DBusDouble(3.14159)));
+    expect(codec.decode('d', '-3.14159'), equals(DBusDouble(-3.14159)));
+
+    expect(codec.decode('s', "''"), equals(DBusString('')));
+    expect(
+        codec.decode('s', "'hello world'"), equals(DBusString('hello world')));
+    expect(codec.decode('s', '"hello \'world\'"'),
+        equals(DBusString("hello 'world'")));
+    expect(codec.decode('s', "'hello \"world\"'"),
+        equals(DBusString('hello "world"')));
+    expect(codec.decode('s', '"\'hello\' \\"world\\""'),
+        equals(DBusString('\'hello\' "world"')));
+    expect(codec.decode('s', r"'hello\\world'"),
+        equals(DBusString(r'hello\world')));
+    expect(codec.decode('s', r"'\a\b\f\n\r\t\v'"),
+        equals(DBusString('\u0007\b\f\n\r\t\v')));
+  });
+
   test('gvariant binary encode', () async {
     var codec = GVariantBinaryCodec();
 

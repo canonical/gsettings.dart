@@ -24,21 +24,21 @@ class GVariantTextCodec {
         }
         return DBusBoolean(value);
       case 'y': // byte
-        return DBusByte(0);
+        return DBusByte(int.parse(data));
       case 'n': // int16
-        return DBusInt16(0);
+        return DBusInt16(int.parse(data));
       case 'q': // uint16
-        return DBusUint16(0);
+        return DBusUint16(int.parse(data));
       case 'i': // int32
-        return DBusInt32(0);
+        return DBusInt32(int.parse(data));
       case 'u': // uint32
-        return DBusUint32(0);
+        return DBusUint32(int.parse(data));
       case 'x': // int64
-        return DBusInt64(0);
+        return DBusInt64(int.parse(data));
       case 't': // uint64
-        return DBusUint64(0);
+        return DBusUint64(int.parse(data));
       case 'd': // double
-        return DBusDouble(0);
+        return DBusDouble(double.parse(data));
       case 's': // string
         return DBusString(_decodeString(data));
       case 'o': // object path
@@ -183,6 +183,54 @@ class GVariantTextCodec {
   }
 
   String _decodeString(String data) {
-    return '';
+    var buffer = StringBuffer();
+    var quote = data[0];
+    if (quote != "'" && quote != '"') {
+      throw 'Missing quote on string';
+    }
+    if (data[data.length - 1] != quote) {
+      throw 'Missing end quote on string';
+    }
+    for (var i = 1; i < data.length - 1; i++) {
+      var c = data[i];
+      if (c == r'\') {
+        if (i >= data.length - 2) {
+          throw 'Escape character at end of string';
+        }
+        i++;
+        switch (data[i]) {
+          case 'a': // bell
+            buffer.writeCharCode(7);
+            break;
+          case 'b': // backspace
+            buffer.writeCharCode(8);
+            break;
+          case 't': // tab
+            buffer.writeCharCode(9);
+            break;
+          case 'n': // newline
+            buffer.writeCharCode(10);
+            break;
+          case 'v': // vertical tab
+            buffer.writeCharCode(11);
+            break;
+          case 'f': // form feed
+            buffer.writeCharCode(12);
+            break;
+          case 'r': // carriage return
+            buffer.writeCharCode(13);
+            break;
+          case '"':
+          case "'":
+          case r'\':
+          default:
+            buffer.write(data[i]);
+            break;
+        }
+      } else {
+        buffer.write(data[i]);
+      }
+    }
+    return buffer.toString();
   }
 }
