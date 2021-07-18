@@ -11,8 +11,11 @@ import 'gvariant_database.dart';
 
 /// Message received when DConf notifies changes.
 class DConfNotifyEvent {
+  /// A prefixed applied to each value in [keys].
   final String prefix;
 
+  /// The paths to each key that has changed, to be prefixed with [prefix].
+  /// If empty, a single key has changed with the value [prefix].
   final List<String> paths;
 
   /// Unique tag for this change, used to detect if this client generated the change.

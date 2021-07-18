@@ -39,8 +39,26 @@ class GSettings {
   /// The name of this schema, e.g. 'org.gnome.desktop.interface'.
   final String name;
 
+  /// Stream of keys that have changed.
+  Stream<List<String>> get keysChanged => _keysChangedController.stream;
+  final _keysChangedController = StreamController<List<String>>();
+
   /// Create a new GSettings schema with [name].
-  GSettings(this.name);
+  GSettings(this.name) {
+    _keysChangedController.onListen = () {
+      _load().then((table) {
+        var client = DConfClient();
+        var path = _getPath(table);
+        _keysChangedController.addStream(client.notify
+            .map((event) => event.paths.isEmpty
+                ? [event.prefix]
+                : event.paths.map((path) => event.prefix + path))
+            .where((keys) => keys.any((key) => key.startsWith(path)))
+            .map((keys) =>
+                keys.map((key) => key.substring(path.length)).toList()));
+      });
+    };
+  }
 
   /// Gets the keys in this schema.
   Future<List<String>> list() async {
@@ -55,13 +73,7 @@ class GSettings {
     if (schemaEntry == null) {
       throw ('Key $name not in GSettings schema ${this.name}');
     }
-
-    // Get path key is stored in backed.
-    var pathValue = table.lookup('.path');
-    if (pathValue == null) {
-      throw ('Unable to determine path for schema ${this.name}');
-    }
-    var path = (pathValue as DBusString).value;
+    var path = _getPath(table);
 
     // Lookup user value in DConf.
     var client = DConfClient();
@@ -78,11 +90,7 @@ class GSettings {
   /// Sets keys in the schema.
   Future<void> set(Map<String, DBusValue> values) async {
     var table = await _load();
-    var pathValue = table.lookup('.path');
-    if (pathValue == null) {
-      throw ('Unable to determine path for schema $name');
-    }
-    var path = (pathValue as DBusString).value;
+    var path = _getPath(table);
 
     var client = DConfClient();
     await client
@@ -105,5 +113,14 @@ class GSettings {
     }
 
     throw ('GSettings schema $name not installed');
+  }
+
+  // Get the key path from the database table.
+  String _getPath(GVariantDatabaseTable table) {
+    var pathValue = table.lookup('.path');
+    if (pathValue == null) {
+      throw ('Unable to determine path for schema $name');
+    }
+    return (pathValue as DBusString).value;
   }
 }
