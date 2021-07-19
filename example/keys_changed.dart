@@ -8,4 +8,5 @@ void main() async {
       print('$key = $value');
     }
   }
+  await settings.close();
 }

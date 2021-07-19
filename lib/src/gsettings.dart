@@ -7,6 +7,120 @@ import 'package:xdg_directories/xdg_directories.dart';
 import 'dconf_client.dart';
 import 'gvariant_database.dart';
 
+/// Get the names of the installed GSettings schemas.
+/// These schemas can be accessed using a [GSettings] object.
+Future<List<String>> listGSettingsSchemas() async {
+  var schemaNames = <String>{};
+  for (var dir in _getSchemaDirs()) {
+    try {
+      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      schemaNames.addAll(await database.list(dir: ''));
+    } on FileSystemException {
+      continue;
+    }
+  }
+  return schemaNames.toList();
+}
+
+/// An object to access settings stored in a GSettings database.
+class GSettings {
+  /// The name of the schema for these settings, e.g. 'org.gnome.desktop.interface'.
+  final String schemaName;
+
+  /// A stream of settings key names as they change.
+  Stream<List<String>> get keysChanged => _keysChangedController.stream;
+  final _keysChangedController = StreamController<List<String>>();
+
+  // Client for communicating with DConf.
+  final DConfClient _dconfClient;
+
+  /// Creates an object to access settings from the shema with name [schemaName].
+  GSettings(this.schemaName, {DBusClient? systemBus, DBusClient? sessionBus})
+      : _dconfClient =
+            DConfClient(systemBus: systemBus, sessionBus: sessionBus) {
+    _keysChangedController.onListen = () {
+      _load().then((table) {
+        var path = _getPath(table);
+        _keysChangedController.addStream(_dconfClient.notify
+            .map((event) => event.paths.isEmpty
+                ? [event.prefix]
+                : event.paths.map((path) => event.prefix + path))
+            .where((keys) => keys.any((key) => key.startsWith(path)))
+            .map((keys) =>
+                keys.map((key) => key.substring(path.length)).toList()));
+      });
+    };
+  }
+
+  /// Gets the names of the settings keys available.
+  Future<List<String>> list() async {
+    var table = await _load();
+    return table.list(dir: '', type: 'v');
+  }
+
+  /// Reads the value of the settings key with [name].
+  /// Attempting to read an unknown key will throw an exception.
+  Future<DBusValue> get(String name) async {
+    var table = await _load();
+    var schemaEntry = table.lookup(name);
+    if (schemaEntry == null) {
+      throw ArgumentError.value(
+          name, 'name', 'Key not in GSettings schema $schemaName');
+    }
+    var path = _getPath(table);
+
+    // Lookup user value in DConf.
+    var value = await _dconfClient.read(path + name);
+    if (value != null) {
+      return value;
+    }
+
+    // Return default value.
+    return (schemaEntry as DBusStruct).children[0];
+  }
+
+  /// Writes new values to settings keys.
+  /// Writing a null value will reset it to its default value.
+  Future<void> set(Map<String, DBusValue?> values) async {
+    var table = await _load();
+    var path = _getPath(table);
+
+    await _dconfClient
+        .write(values.map((name, value) => MapEntry(path + name, value)));
+  }
+
+  /// Terminates any open connections. If a settings object remains unclosed, the Dart process may not terminate.
+  Future<void> close() async {
+    await _dconfClient.close();
+  }
+
+  // Get the database entry for this schema.
+  Future<GVariantDatabaseTable> _load() async {
+    for (var dir in _getSchemaDirs()) {
+      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      try {
+        var table = await database.lookupTable(schemaName);
+        if (table != null) {
+          return table;
+        }
+      } on FileSystemException {
+        continue;
+      }
+    }
+
+    throw ('GSettings schema $schemaName not installed');
+  }
+
+  // Get the key path from the database table.
+  String _getPath(GVariantDatabaseTable table) {
+    var pathValue = table.lookup('.path');
+    if (pathValue == null) {
+      throw ('Unable to determine path for schema $schemaName');
+    }
+    return (pathValue as DBusString).value;
+  }
+}
+
 // Get the directories that contain schemas.
 List<Directory> _getSchemaDirs() {
   var schemaDirs = <Directory>[];
@@ -25,102 +139,4 @@ List<Directory> _getSchemaDirs() {
     schemaDirs.add(Directory(path));
   }
   return schemaDirs;
-}
-
-/// Get the names of the installed schemas.
-Future<List<String>> listGSettingsSchemas() async {
-  var database =
-      GVariantDatabase('/usr/share/glib-2.0/schemas/gschemas.compiled');
-  return database.list(dir: '');
-}
-
-/// A GSettings schema.
-class GSettings {
-  /// The name of this schema, e.g. 'org.gnome.desktop.interface'.
-  final String name;
-
-  /// Stream of keys that have changed.
-  Stream<List<String>> get keysChanged => _keysChangedController.stream;
-  final _keysChangedController = StreamController<List<String>>();
-
-  /// Create a new GSettings schema with [name].
-  GSettings(this.name) {
-    _keysChangedController.onListen = () {
-      _load().then((table) {
-        var client = DConfClient();
-        var path = _getPath(table);
-        _keysChangedController.addStream(client.notify
-            .map((event) => event.paths.isEmpty
-                ? [event.prefix]
-                : event.paths.map((path) => event.prefix + path))
-            .where((keys) => keys.any((key) => key.startsWith(path)))
-            .map((keys) =>
-                keys.map((key) => key.substring(path.length)).toList()));
-      });
-    };
-  }
-
-  /// Gets the keys in this schema.
-  Future<List<String>> list() async {
-    var table = await _load();
-    return table.list(dir: '', type: 'v');
-  }
-
-  /// Gets the value of a key in this schema.
-  Future<DBusValue> get(String name) async {
-    var table = await _load();
-    var schemaEntry = table.lookup(name);
-    if (schemaEntry == null) {
-      throw ('Key $name not in GSettings schema ${this.name}');
-    }
-    var path = _getPath(table);
-
-    // Lookup user value in DConf.
-    var client = DConfClient();
-    var value = await client.read(path + name);
-    await client.close();
-    if (value != null) {
-      return value;
-    }
-
-    // Return default value.
-    return (schemaEntry as DBusStruct).children[0];
-  }
-
-  /// Sets keys in the schema.
-  Future<void> set(Map<String, DBusValue> values) async {
-    var table = await _load();
-    var path = _getPath(table);
-
-    var client = DConfClient();
-    await client
-        .write(values.map((name, value) => MapEntry(path + name, value)));
-    await client.close();
-  }
-
-  // Get the database entry for this schema.
-  Future<GVariantDatabaseTable> _load() async {
-    for (var dir in _getSchemaDirs()) {
-      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
-      try {
-        var table = await database.lookupTable(name);
-        if (table != null) {
-          return table;
-        }
-      } on FileSystemException {
-        continue;
-      }
-    }
-
-    throw ('GSettings schema $name not installed');
-  }
-
-  // Get the key path from the database table.
-  String _getPath(GVariantDatabaseTable table) {
-    var pathValue = table.lookup('.path');
-    if (pathValue == null) {
-      throw ('Unable to determine path for schema $name');
-    }
-    return (pathValue as DBusString).value;
-  }
 }
