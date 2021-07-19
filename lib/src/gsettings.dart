@@ -28,7 +28,7 @@ List<Directory> _getSchemaDirs() {
 }
 
 /// Get the names of the installed schemas.
-Future<List<String>> listGSettingss() async {
+Future<List<String>> listGSettingsSchemas() async {
   var database =
       GVariantDatabase('/usr/share/glib-2.0/schemas/gschemas.compiled');
   return database.list(dir: '');
