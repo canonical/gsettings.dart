@@ -53,19 +53,20 @@ class GSettings {
   }
 
   /// Gets the names of the settings keys available.
+  /// If the schema is not installed will throw a [GSettingsSchemaNotInstalledException].
   Future<List<String>> list() async {
     var table = await _load();
     return table.list(dir: '', type: 'v');
   }
 
   /// Reads the value of the settings key with [name].
-  /// Attempting to read an unknown key will throw an exception.
+  /// Attempting to read an unknown key will throw a [GSettingsUnknownKeyException].
+  /// If the schema is not installed will throw a [GSettingsSchemaNotInstalledException].
   Future<DBusValue> get(String name) async {
     var table = await _load();
     var schemaEntry = table.lookup(name);
     if (schemaEntry == null) {
-      throw ArgumentError.value(
-          name, 'name', 'Key not in GSettings schema $schemaName');
+      throw GSettingsUnknownKeyException(schemaName, name);
     }
     var path = _getPath(table);
 
@@ -108,7 +109,7 @@ class GSettings {
       }
     }
 
-    throw ('GSettings schema $schemaName not installed');
+    throw GSettingsSchemaNotInstalledException(schemaName);
   }
 
   // Get the key path from the database table.
@@ -139,4 +140,29 @@ List<Directory> _getSchemaDirs() {
     schemaDirs.add(Directory(path));
   }
   return schemaDirs;
+}
+
+/// Exception thrown when trying to access a GSettings schema that is not installed.
+class GSettingsSchemaNotInstalledException implements Exception {
+  /// The name of the GSettings schema that was being accessed.
+  final String schemaName;
+
+  const GSettingsSchemaNotInstalledException(this.schemaName);
+
+  @override
+  String toString() => 'GSettings schema $schemaName not installed';
+}
+
+/// Exception thrown when trying to access a key not in a GSettings schema.
+class GSettingsUnknownKeyException implements Exception {
+  /// The name of the GSettings schema that was being accessed.
+  final String schemaName;
+
+  /// The name of the key being accessed.
+  final String keyName;
+
+  const GSettingsUnknownKeyException(this.schemaName, this.keyName);
+
+  @override
+  String toString() => 'Key $keyName not in GSettings schema $schemaName';
 }

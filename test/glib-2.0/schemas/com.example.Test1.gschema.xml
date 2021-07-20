@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="com.example.Test1" path="/com/example/test1/">
+    <key name="boolean-value" type="b">
+      <default>false</default>
+    </key>
+    <key name="byte-value" type="y">
+      <default>0x00</default>
+    </key>
+    <key name="int16-value" type="n">
+      <default>0</default>
+    </key>
+    <key name="uint16-value" type="q">
+      <default>0</default>
+    </key>
+    <key name="int32-value" type="i">
+      <default>0</default>
+    </key>
+    <key name="uint32-value" type="u">
+      <default>0</default>
+    </key>
+    <key name="int64-value" type="x">
+      <default>0</default>
+    </key>
+    <key name="uint64-value" type="t">
+      <default>0</default>
+    </key>
+    <key name="double-value" type="d">
+      <default>0.0</default>
+    </key>
+    <key name="string-value" type="s">
+      <default>''</default>
+    </key>
+    <key name="object-path-value" type="o">
+      <default>objectpath '/'</default>
+    </key>
+    <key name="signature-value" type="g">
+      <default>signature ''</default>
+    </key>
+  </schema>
+</schemalist>
