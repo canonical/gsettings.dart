@@ -80,12 +80,27 @@ class GSettings {
     return (schemaEntry as DBusStruct).children[0];
   }
 
-  /// Writes new values to settings keys.
-  /// Writing a null value will reset it to its default value.
-  Future<void> set(Map<String, DBusValue?> values) async {
+  /// Writes a single settings keys.
+  /// If you need to set multiple values, use [setAll].
+  Future<void> set(String name, DBusValue value) async {
     var table = await _load();
     var path = _getPath(table);
+    await _dconfClient.write({path + name: value});
+  }
 
+  /// Removes a setting value.
+  /// The key will now return the default value specified in the GSetting schema.
+  Future<void> unset(String name) async {
+    var table = await _load();
+    var path = _getPath(table);
+    await _dconfClient.write({path + name: null});
+  }
+
+  /// Writes multiple settings keys in a single transaction.
+  /// Writing a null value will reset it to its default value.
+  Future<void> setAll(Map<String, DBusValue?> values) async {
+    var table = await _load();
+    var path = _getPath(table);
     await _dconfClient
         .write(values.map((name, value) => MapEntry(path + name, value)));
   }
