@@ -29,4 +29,8 @@ jobs:
         run: dart analyze --fatal-infos --fatal-warnings .
 
       - name: Run regression tests
-        run: dart test -x ipv6
+        run: dart test
+        env:
+          XDG_DATA_DIRS: ${{ github.workspace }}/test
+          XDG_CONFIG_HOME: ${{ github.workspace }}/test
+          DCONF_PROFILE: ${{ github.workspace }}/test/dconf/test-profile
