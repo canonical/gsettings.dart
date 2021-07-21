@@ -64,10 +64,7 @@ class GSettings {
   /// If the schema is not installed will throw a [GSettingsSchemaNotInstalledException].
   Future<DBusValue> get(String name) async {
     var table = await _load();
-    var schemaEntry = table.lookup(name);
-    if (schemaEntry == null) {
-      throw GSettingsUnknownKeyException(schemaName, name);
-    }
+    var schemaEntry = _getSchemaEntry(table, name);
     var path = _getPath(table);
 
     // Lookup user value in DConf.
@@ -76,8 +73,24 @@ class GSettings {
       return value;
     }
 
-    // Return default value.
-    return (schemaEntry as DBusStruct).children[0];
+    return _getDefaultValue(schemaEntry);
+  }
+
+  /// Reads the default value of the settings key with [name].
+  /// If this key is not set, then this value will be returned by [get].
+  /// Attempting to read an unknown key will throw a [GSettingsUnknownKeyException].
+  /// If the schema is not installed will throw a [GSettingsSchemaNotInstalledException].
+  Future<DBusValue> getDefault(String name) async {
+    var table = await _load();
+    var schemaEntry = _getSchemaEntry(table, name);
+    return _getDefaultValue(schemaEntry);
+  }
+
+  /// Check if the settings key with [name] is set.
+  Future<bool> isSet(String name) async {
+    var table = await _load();
+    var path = _getPath(table);
+    return await _dconfClient.read(path + name) != null;
   }
 
   /// Writes a single settings keys.
@@ -125,6 +138,66 @@ class GSettings {
     }
 
     throw GSettingsSchemaNotInstalledException(schemaName);
+  }
+
+  _GSettingsSchemaEntry _getSchemaEntry(
+      GVariantDatabaseTable table, String name) {
+    var entry = table.lookup(name);
+    if (entry == null) {
+      throw GSettingsUnknownKeyException(schemaName, name);
+    }
+    entry as DBusStruct;
+    var defaultValue = entry.children[0];
+    List<int>? words;
+    DBusValue? minimumValue;
+    DBusValue? maximumValue;
+    Map<String, DBusValue>? desktopOverrides;
+    for (var item in entry.children.skip(1)) {
+      item as DBusStruct;
+      switch ((item.children[0] as DBusByte).value) {
+        case 108: // 'l' - localization
+          //var l10n = (item.children[1] as DBusByte).value; // 'm': messages, 't': time.
+          //var unparsedDefaultValue = (item.children[2] as DBusString).value;
+          break;
+        case 102: // 'f' - flags
+        case 101: // 'e' - enum
+        case 99: // 'c' - choice
+          words = (item.children[0] as DBusArray)
+              .children
+              .map((value) => (value as DBusUint32).value)
+              .toList();
+          break;
+        case 114: // 'r' - range
+          minimumValue = item.children[1];
+          maximumValue = item.children[2];
+          break;
+        case 100: // 'd' - desktop overrides
+          desktopOverrides = (item.children[1] as DBusDict).children.map(
+              (key, value) => MapEntry(
+                  (key as DBusString).value, (value as DBusVariant).value));
+          break;
+      }
+    }
+    return _GSettingsSchemaEntry(
+        defaultValue: defaultValue,
+        words: words,
+        minimumValue: minimumValue,
+        maximumValue: maximumValue,
+        desktopOverrides: desktopOverrides);
+  }
+
+  DBusValue _getDefaultValue(_GSettingsSchemaEntry entry) {
+    if (entry.desktopOverrides != null) {
+      var xdgCurrentDesktop = Platform.environment['XDG_CURRENT_DESKTOP'] ?? '';
+      for (var desktop in xdgCurrentDesktop.split(':')) {
+        var defaultValue = entry.desktopOverrides![desktop];
+        if (defaultValue != null) {
+          return defaultValue;
+        }
+      }
+    }
+
+    return entry.defaultValue;
   }
 
   // Get the key path from the database table.
@@ -180,4 +253,23 @@ class GSettingsUnknownKeyException implements Exception {
 
   @override
   String toString() => 'Key $keyName not in GSettings schema $schemaName';
+}
+
+class _GSettingsSchemaEntry {
+  final DBusValue defaultValue;
+  final List<int>? words;
+  final DBusValue? minimumValue;
+  final DBusValue? maximumValue;
+  final Map<String, DBusValue>? desktopOverrides;
+
+  const _GSettingsSchemaEntry(
+      {required this.defaultValue,
+      this.words,
+      this.minimumValue,
+      this.maximumValue,
+      this.desktopOverrides});
+
+  @override
+  String toString() =>
+      '_GSettingsSchemaEntry(defaultValue: $defaultValue, words: $words, minimumValue: $minimumValue, maximumValue: $maximumValue, desktopOverrides: $desktopOverrides)';
 }
