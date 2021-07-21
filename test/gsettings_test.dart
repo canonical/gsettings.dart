@@ -925,19 +925,57 @@ void main() {
     test('get - preset', () async {
       // Test1 schema has values set in DConf.
       var settings = GSettings('com.example.Test1');
+      expect(await settings.isSet('boolean-value'), isTrue);
+      expect(await settings.getDefault('boolean-value'),
+          equals(DBusBoolean(false)));
       expect(await settings.get('boolean-value'), equals(DBusBoolean(true)));
+
+      expect(await settings.isSet('byte-value'), isTrue);
+      expect(await settings.getDefault('byte-value'), equals(DBusByte(0)));
       expect(await settings.get('byte-value'), equals(DBusByte(0x2a)));
+
+      expect(await settings.isSet('int16-value'), isTrue);
+      expect(await settings.getDefault('int16-value'), equals(DBusInt16(0)));
       expect(await settings.get('int16-value'), equals(DBusInt16(-16)));
+
+      expect(await settings.isSet('uint16-value'), isTrue);
+      expect(await settings.getDefault('uint16-value'), equals(DBusUint16(0)));
       expect(await settings.get('uint16-value'), equals(DBusUint16(16)));
+
+      expect(await settings.isSet('int32-value'), isTrue);
+      expect(await settings.getDefault('int32-value'), equals(DBusInt32(0)));
       expect(await settings.get('int32-value'), equals(DBusInt32(-32)));
+
+      expect(await settings.isSet('uint32-value'), isTrue);
+      expect(await settings.getDefault('uint32-value'), equals(DBusUint32(0)));
       expect(await settings.get('uint32-value'), equals(DBusUint32(32)));
+
+      expect(await settings.isSet('int64-value'), isTrue);
+      expect(await settings.getDefault('int64-value'), equals(DBusInt64(0)));
       expect(await settings.get('int64-value'), equals(DBusInt64(-64)));
+
+      expect(await settings.isSet('uint64-value'), isTrue);
+      expect(await settings.getDefault('uint64-value'), equals(DBusUint64(0)));
       expect(await settings.get('uint64-value'), equals(DBusUint64(64)));
+
+      expect(await settings.isSet('double-value'), isTrue);
+      expect(await settings.getDefault('double-value'), equals(DBusDouble(0)));
       expect(await settings.get('double-value'), equals(DBusDouble(3.14159)));
+
+      expect(await settings.isSet('string-value'), isTrue);
+      expect(await settings.getDefault('string-value'), equals(DBusString('')));
       expect(await settings.get('string-value'),
           equals(DBusString('Hello World')));
+
+      expect(await settings.isSet('object-path-value'), isTrue);
+      expect(await settings.getDefault('object-path-value'),
+          equals(DBusObjectPath('/')));
       expect(await settings.get('object-path-value'),
           equals(DBusObjectPath('/com/example/Test2')));
+
+      expect(await settings.isSet('signature-value'), isTrue);
+      expect(await settings.getDefault('signature-value'),
+          equals(DBusSignature('')));
       expect(await settings.get('signature-value'),
           equals(DBusSignature('a{sv}')));
     });
@@ -945,18 +983,41 @@ void main() {
     test('get - unset', () async {
       // Test2 schema has no values set in DConf.
       var settings = GSettings('com.example.Test2');
+      expect(await settings.isSet('boolean-value'), isFalse);
       expect(await settings.get('boolean-value'), equals(DBusBoolean(false)));
+
+      expect(await settings.isSet('byte-value'), isFalse);
       expect(await settings.get('byte-value'), equals(DBusByte(0)));
+
+      expect(await settings.isSet('int16-value'), isFalse);
       expect(await settings.get('int16-value'), equals(DBusInt16(0)));
+
+      expect(await settings.isSet('uint16-value'), isFalse);
       expect(await settings.get('uint16-value'), equals(DBusUint16(0)));
+
+      expect(await settings.isSet('int32-value'), isFalse);
       expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+
+      expect(await settings.isSet('uint32-value'), isFalse);
       expect(await settings.get('uint32-value'), equals(DBusUint32(0)));
+
+      expect(await settings.isSet('int64-value'), isFalse);
       expect(await settings.get('int64-value'), equals(DBusInt64(0)));
+
+      expect(await settings.isSet('uint64-value'), isFalse);
       expect(await settings.get('uint64-value'), equals(DBusUint64(0)));
+
+      expect(await settings.isSet('double-value'), isFalse);
       expect(await settings.get('double-value'), equals(DBusDouble(0.0)));
+
+      expect(await settings.isSet('string-value'), isFalse);
       expect(await settings.get('string-value'), equals(DBusString('')));
+
+      expect(await settings.isSet('object-path-value'), isFalse);
       expect(
           await settings.get('object-path-value'), equals(DBusObjectPath('/')));
+
+      expect(await settings.isSet('signature-value'), isFalse);
       expect(await settings.get('signature-value'), equals(DBusSignature('')));
     });
 
