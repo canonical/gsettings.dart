@@ -29,8 +29,14 @@ jobs:
         run: dart analyze --fatal-infos --fatal-warnings .
 
       - name: Run regression tests
-        run: dart test
+        run: dart run test_cov
         env:
           XDG_DATA_DIRS: ${{ github.workspace }}/test
           XDG_CONFIG_HOME: ${{ github.workspace }}/test
           DCONF_PROFILE: ${{ github.workspace }}/test/dconf/test-profile
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v1
+        with:
+          file: coverage/lcov.info
+          token: ${{secrets.CODECOV_TOKEN}}
