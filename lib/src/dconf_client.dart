@@ -53,7 +53,9 @@ class DConfClient {
           throw 'No DConf source to write to';
         }
         _notifyController.addStream(DBusRemoteObjectSignalStream(
-                sources[0].writer, 'ca.desrt.dconf.Writer', 'Notify',
+                object: sources[0].writer,
+                interface: 'ca.desrt.dconf.Writer',
+                name: 'Notify',
                 signature: DBusSignature('sass'))
             .map((signal) => DConfNotifyEvent(
                 (signal.values[0] as DBusString).value,
@@ -243,8 +245,9 @@ class DConfEngineSourceUser extends DConfEngineSource {
       GVariantDatabase(_buildFilename([configHome.path, 'dconf', name]));
 
   @override
-  DBusRemoteObject get writer => DBusRemoteObject(sessionBus, 'ca.desrt.dconf',
-      DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
+  DBusRemoteObject get writer => DBusRemoteObject(sessionBus,
+      name: 'ca.desrt.dconf',
+      path: DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
 
   @override
   String toString() => "DConfEngineSourceUser('$name')";
@@ -261,8 +264,9 @@ class DConfEngineSourceSystem extends DConfEngineSource {
       GVariantDatabase(_buildFilename(['/etc', 'dconf', 'db', name]));
 
   @override
-  DBusRemoteObject get writer => DBusRemoteObject(systemBus, 'ca.desrt.dconf',
-      DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
+  DBusRemoteObject get writer => DBusRemoteObject(systemBus,
+      name: 'ca.desrt.dconf',
+      path: DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
 
   @override
   String toString() => "DConfEngineSourceSystem('$name')";
