@@ -27,6 +27,9 @@ class GSettings {
   /// The name of the schema for these settings, e.g. 'org.gnome.desktop.interface'.
   final String schemaName;
 
+  /// The path to the settings, e.g. '/org/gnome/desktop/notifications/application/org-gnome-terminal/' or null if this is a non-relocatable schema.
+  final String? path;
+
   /// A stream of settings key names as they change.
   Stream<List<String>> get keysChanged => _keysChangedController.stream;
   final _keysChangedController = StreamController<List<String>>();
@@ -35,9 +38,29 @@ class GSettings {
   final DConfClient _dconfClient;
 
   /// Creates an object to access settings from the shema with name [schemaName].
-  GSettings(this.schemaName, {DBusClient? systemBus, DBusClient? sessionBus})
+  /// If this schema is relocatable [path] is required to be set.
+  /// If the schema is not relocatable an exception will be thrown if [path] is set.
+  GSettings(this.schemaName,
+      {this.path, DBusClient? systemBus, DBusClient? sessionBus})
       : _dconfClient =
             DConfClient(systemBus: systemBus, sessionBus: sessionBus) {
+    if (path != null) {
+      if (path!.isEmpty) {
+        throw ArgumentError.value(path, 'path', 'Empty path given');
+      }
+      if (!path!.startsWith('/')) {
+        throw ArgumentError.value(
+            path, 'path', 'Path must begin with a slash (/)');
+      }
+      if (!path!.endsWith('/')) {
+        throw ArgumentError.value(
+            path, 'path', 'Path must end with a slash (/)');
+      }
+      if (path!.contains('//')) {
+        throw ArgumentError.value(
+            path, 'path', 'Path must not contain two adjacent slashes (//)');
+      }
+    }
     _keysChangedController.onListen = () {
       _load().then((table) {
         var path = _getPath(table);
@@ -204,7 +227,15 @@ class GSettings {
   String _getPath(GVariantDatabaseTable table) {
     var pathValue = table.lookup('.path');
     if (pathValue == null) {
-      throw ('Unable to determine path for schema $schemaName');
+      if (path == null) {
+        throw GSettingsException(
+            'No path provided for relocatable schema $schemaName');
+      }
+      return path!;
+    }
+    if (path != null) {
+      throw GSettingsException(
+          'Path provided for non-relocatable schema $schemaName');
     }
     return (pathValue as DBusString).value;
   }
@@ -228,6 +259,16 @@ List<Directory> _getSchemaDirs() {
     schemaDirs.add(Directory(path));
   }
   return schemaDirs;
+}
+
+/// Exception thrown when an error occurs in GSettings.
+class GSettingsException implements Exception {
+  final String _message;
+
+  const GSettingsException(this._message);
+
+  @override
+  String toString() => _message;
 }
 
 /// Exception thrown when trying to access a GSettings schema that is not installed.
