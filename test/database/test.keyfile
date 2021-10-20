@@ -11,3 +11,6 @@ string-value='Hello World'
 uint16-value=uint16 16
 uint32-value=uint32 32
 uint64-value=uint64 64
+
+[com/example/relocatable1]
+boolean-value=true

@@ -893,7 +893,13 @@ void main() {
 
     test('list schemas', () async {
       var schemas = await listGSettingsSchemas();
-      expect(schemas, equals(['com.example.Test1', 'com.example.Test2']));
+      expect(
+          schemas,
+          equals([
+            'com.example.Test1',
+            'com.example.Test2',
+            'com.example.Relocatable'
+          ]));
     });
 
     test('unknown schema', () async {
@@ -1025,6 +1031,57 @@ void main() {
       var settings = GSettings('com.example.Test1');
       expect(() async => await settings.get('no-such-key'),
           throwsA(isA<GSettingsUnknownKeyException>()));
+    });
+
+    test('relocatable schema - get', () async {
+      var settings = GSettings('com.example.Relocatable',
+          path: '/com/example/relocatable1/');
+      expect(await settings.get('boolean-value'), equals(DBusBoolean(true)));
+    });
+
+    test('relocatable schema - get unset', () async {
+      var settings = GSettings('com.example.Relocatable',
+          path: '/com/example/relocatable2/');
+      expect(await settings.get('boolean-value'), equals(DBusBoolean(false)));
+    });
+
+    test('non-relocatable schema with path', () async {
+      var settings =
+          GSettings('com.example.Test1', path: '/com/example/relocatable1/');
+      expect(() async => await settings.get('boolean-value'),
+          throwsA(isA<GSettingsException>()));
+    });
+
+    test('relocatable schema - no path', () async {
+      var settings = GSettings('com.example.Relocatable');
+      expect(() async => await settings.get('boolean-value'),
+          throwsA(isA<GSettingsException>()));
+    });
+
+    test('relocatable schema - empty path', () async {
+      expect(() => GSettings('com.example.Relocatable', path: ''),
+          throwsArgumentError);
+    });
+
+    test('relocatable schema - missing leading slash', () async {
+      expect(
+          () => GSettings('com.example.Relocatable',
+              path: 'com/example/relocatable1/'),
+          throwsArgumentError);
+    });
+
+    test('relocatable schema - missing trailing slash', () async {
+      expect(
+          () => GSettings('com.example.Relocatable',
+              path: '/com/example/relocatable1'),
+          throwsArgumentError);
+    });
+
+    test('relocatable schema - missing element', () async {
+      expect(
+          () =>
+              GSettings('com.example.Relocatable', path: '/com//relocatable1/'),
+          throwsArgumentError);
     });
   });
 }
