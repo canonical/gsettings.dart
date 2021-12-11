@@ -185,7 +185,7 @@ class GSettings {
         case 102: // 'f' - flags
         case 101: // 'e' - enum
         case 99: // 'c' - choice
-          words = (item.children[0] as DBusArray)
+          words = (item.children[1] as DBusArray)
               .children
               .map((value) => (value as DBusUint32).value)
               .toList();

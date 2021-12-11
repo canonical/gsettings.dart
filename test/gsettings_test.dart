@@ -923,6 +923,8 @@ void main() {
             'uint64-value',
             'double-value',
             'string-value',
+            'enum-value',
+            'flags-value',
             'object-path-value',
             'signature-value'
           ]));
@@ -973,6 +975,17 @@ void main() {
       expect(await settings.get('string-value'),
           equals(DBusString('Hello World')));
 
+      expect(await settings.isSet('enum-value'), isTrue);
+      expect(
+          await settings.getDefault('enum-value'), equals(DBusString('enum0')));
+      expect(await settings.get('enum-value'), equals(DBusString('enum1')));
+
+      expect(await settings.isSet('flags-value'), isTrue);
+      expect(await settings.getDefault('flags-value'),
+          equals(DBusArray.string([])));
+      expect(await settings.get('flags-value'),
+          equals(DBusArray.string(['flag1', 'flag4'])));
+
       expect(await settings.isSet('object-path-value'), isTrue);
       expect(await settings.getDefault('object-path-value'),
           equals(DBusObjectPath('/')));
@@ -1018,6 +1031,12 @@ void main() {
 
       expect(await settings.isSet('string-value'), isFalse);
       expect(await settings.get('string-value'), equals(DBusString('')));
+
+      expect(await settings.isSet('enum-value'), isFalse);
+      expect(await settings.get('enum-value'), equals(DBusString('enum0')));
+
+      expect(await settings.isSet('flags-value'), isFalse);
+      expect(await settings.get('flags-value'), equals(DBusArray.string([])));
 
       expect(await settings.isSet('object-path-value'), isFalse);
       expect(
