@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="com.example.Enum">
+    <value value="0" nick="enum0"/>
+    <value value="1" nick="enum1"/>
+    <value value="2" nick="enum2"/>
+  </enum>
+  <flags id="com.example.Flags">
+    <value value="0" nick="flag0"/>
+    <value value="1" nick="flag1"/>
+    <value value="2" nick="flag2"/>
+    <value value="4" nick="flag4"/>
+  </flags>
+</schemalist>

@@ -31,6 +31,12 @@
     <key name="string-value" type="s">
       <default>''</default>
     </key>
+    <key name="enum-value" enum="com.example.Enum">
+      <default>'enum0'</default>
+    </key>
+    <key name="flags-value" flags="com.example.Flags">
+      <default>[]</default>
+    </key>
     <key name="object-path-value" type="o">
       <default>objectpath '/'</default>
     </key>
