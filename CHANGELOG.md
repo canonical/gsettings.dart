@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+* Fix reading ranged values.
+
 ## 0.2.2
 
 * Fix reading enums and flags.
