@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+* Fix reading enums and flags.
+
 ## 0.2.1
 
 * Support relocatable schemas.
