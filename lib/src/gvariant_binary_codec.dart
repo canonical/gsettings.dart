@@ -368,13 +368,13 @@ class GVariantBinaryCodec {
     var children = <DBusValue>[];
     var offset = 0;
     for (var i = 0; i < childTypes.length; i++) {
-      var start = _align(offset, _getAlignment(childTypes[i]));
-      var size = _getElementSize(childTypes[i]);
+      var type = childTypes[i];
+      var start = _align(offset, _getAlignment(type));
+      var size = _getElementSize(type);
       if (size < 0) {
         size = data.lengthInBytes - start;
       }
-      children.add(decode(
-          childTypes[i], ByteData.sublistView(data, start, start + size),
+      children.add(decode(type, ByteData.sublistView(data, start, start + size),
           endian: endian));
       offset += size;
     }
@@ -390,8 +390,9 @@ class GVariantBinaryCodec {
     var children = <DBusValue>[];
     var offset = 0;
     for (var i = 0; i < childTypes.length; i++) {
-      var size = _getElementSize(childTypes[i]);
-      var start = _align(offset, _getAlignment(childTypes[i]));
+      var type = childTypes[i];
+      var size = _getElementSize(type);
+      var start = _align(offset, _getAlignment(type));
       int end;
       if (size > 0) {
         // Fixed elements
@@ -408,8 +409,8 @@ class GVariantBinaryCodec {
         }
         dataEnd -= offsetSize;
       }
-      children.add(decode(childTypes[i], ByteData.sublistView(data, start, end),
-          endian: endian));
+      children.add(
+          decode(type, ByteData.sublistView(data, start, end), endian: endian));
       offset = end;
     }
 
@@ -538,6 +539,7 @@ class GVariantBinaryCodec {
           .map((s) => s.value);
       var size = 0;
       for (var type in childTypes) {
+        size = _align(size, _getAlignment(type));
         var s = _getElementSize(type);
         if (s < 0) {
           return -1;

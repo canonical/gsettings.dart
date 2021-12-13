@@ -37,6 +37,10 @@
     <key name="flags-value" flags="com.example.Flags">
       <default>[]</default>
     </key>
+    <key name="range-value" type="u">
+      <range min="0" max="100"/>
+      <default>0</default>
+    </key>
     <key name="object-path-value" type="o">
       <default>objectpath '/'</default>
     </key>
