@@ -191,8 +191,9 @@ class GSettings {
               .toList();
           break;
         case 114: // 'r' - range
-          minimumValue = item.children[1];
-          maximumValue = item.children[2];
+          var range = item.children[1] as DBusStruct;
+          minimumValue = range.children[0];
+          maximumValue = range.children[1];
           break;
         case 100: // 'd' - desktop overrides
           desktopOverrides = (item.children[1] as DBusDict).children.map(

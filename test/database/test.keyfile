@@ -13,6 +13,7 @@ uint32-value=uint32 32
 uint64-value=uint64 64
 enum-value='enum1'
 flags-value=['flag1','flag4']
+range-value=uint32 32
 
 [com/example/relocatable1]
 boolean-value=true

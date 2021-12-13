@@ -986,6 +986,10 @@ void main() {
       expect(await settings.get('flags-value'),
           equals(DBusArray.string(['flag1', 'flag4'])));
 
+      expect(await settings.isSet('range-value'), isTrue);
+      expect(await settings.getDefault('range-value'), equals(DBusUint32(0)));
+      expect(await settings.get('range-value'), equals(DBusUint32(32)));
+
       expect(await settings.isSet('object-path-value'), isTrue);
       expect(await settings.getDefault('object-path-value'),
           equals(DBusObjectPath('/')));
@@ -1037,6 +1041,9 @@ void main() {
 
       expect(await settings.isSet('flags-value'), isFalse);
       expect(await settings.get('flags-value'), equals(DBusArray.string([])));
+
+      expect(await settings.isSet('range-value'), isFalse);
+      expect(await settings.get('range-value'), equals(DBusUint32(0)));
 
       expect(await settings.isSet('object-path-value'), isFalse);
       expect(
