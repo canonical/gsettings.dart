@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+* Only list as supporting Linux.
+
 ## 0.2.3
 
 * Fix reading ranged values.
