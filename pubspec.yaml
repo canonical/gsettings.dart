@@ -2,7 +2,7 @@ name: gsettings
 version: 0.2.3
 
 description:
-  GSettings client
+  Provides a client to access GSettings - a settings database used for storing user preferences on Linux.
 
 homepage: https://github.com/canonical/gsettings.dart
 
