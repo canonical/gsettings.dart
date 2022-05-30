@@ -13,7 +13,7 @@ Future<List<String>> listGSettingsSchemas() async {
   var schemaNames = <String>{};
   for (var dir in _getSchemaDirs()) {
     try {
-      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      var database = GVariantDatabase('${dir.path}/gschemas.compiled');
       schemaNames.addAll(await database.list(dir: ''));
     } on FileSystemException {
       continue;
@@ -149,7 +149,7 @@ class GSettings {
   // Get the database entry for this schema.
   Future<GVariantDatabaseTable> _load() async {
     for (var dir in _getSchemaDirs()) {
-      var database = GVariantDatabase(dir.path + '/gschemas.compiled');
+      var database = GVariantDatabase('${dir.path}/gschemas.compiled');
       try {
         var table = await database.lookupTable(schemaName);
         if (table != null) {
