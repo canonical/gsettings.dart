@@ -25,7 +25,7 @@ class GVariantTextCodec {
     if (value is DBusBoolean) {
       buffer.write(value.value ? 'true' : 'false');
     } else if (value is DBusByte) {
-      buffer.write('0x' + value.value.toRadixString(16).padLeft(2, '0'));
+      buffer.write('0x${value.value.toRadixString(16).padLeft(2, '0')}');
     } else if (value is DBusInt16) {
       buffer.write(value.value.toString());
     } else if (value is DBusUint16) {

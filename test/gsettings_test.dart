@@ -875,12 +875,12 @@ void main() {
   group('GSettings', () {
     setUp(() async {
       // Check have the environment set up to only access the test schemas and dconf database, not the system ones.
-      var testPath = Directory.current.path + '/test';
+      var testPath = '${Directory.current.path}/test';
       var dataDirs = Platform.environment['XDG_DATA_DIRS'];
       var expectedDataDirs = testPath;
       var validDataDirs = dataDirs == 'test' || dataDirs == expectedDataDirs;
       var dconfProfile = Platform.environment['DCONF_PROFILE'];
-      var expectedDConfProfile = testPath + '/dconf/test-profile';
+      var expectedDConfProfile = '$testPath/dconf/test-profile';
       var validDConfProfile = dconfProfile == expectedDConfProfile;
       var expectedConfigHome = testPath;
       var configHome = Platform.environment['XDG_CONFIG_HOME'];
