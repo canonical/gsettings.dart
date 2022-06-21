@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dbus/dbus.dart';
 import 'package:gsettings/gsettings.dart';
+import 'package:gsettings/src/dconf_client.dart';
 import 'package:gsettings/src/gvariant_binary_codec.dart';
 import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
@@ -940,6 +941,56 @@ void main() {
             DBusString('one'): DBusInt32(1),
             DBusString('two'): DBusInt32(2)
           })));
+    });
+  });
+
+  group('DConf', () {
+    test('dconf client', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress);
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      var client = DConfClient(sessionBus: DBusClient(clientAddress));
+      addTearDown(() async => await client.close());
+
+      expect(await client.list('/'), equals(['com/']));
+      expect(await client.list('/com/'), equals(['example/']));
+      expect(await client.list('/com/example/'),
+          equals(['test1/', 'relocatable1/']));
+      expect(
+          await client.list('/com/example/test1/'),
+          equals([
+            'boolean-value',
+            'uint32-value',
+            'signature-value',
+            'string-value',
+            'int32-value',
+            'flags-value',
+            'enum-value',
+            'int16-value',
+            'uint16-value',
+            'range-value',
+            'int64-value',
+            'uint64-value',
+            'object-path-value',
+            'double-value',
+            'byte-value'
+          ]));
+
+      expect(await client.read('/com/example/test1/string-value'),
+          equals(DBusString('Hello World')));
+
+      expect(
+          await client.write(
+              {'/com/example/test2/string-value': DBusString('Hello World')}),
+          equals(''));
+      expect(dconfServer.values['/com/example/test2/string-value'],
+          equals(DBusString('Hello World')));
     });
   });
 
