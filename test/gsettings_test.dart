@@ -947,12 +947,14 @@ void main() {
 
     test('unknown schema', () async {
       var settings = GSettings('com.example.DoesNotExist');
+      addTearDown(() async => await settings.close());
       expect(() async => await settings.list(),
           throwsA(isA<GSettingsSchemaNotInstalledException>()));
     });
 
     test('list keys', () async {
       var settings = GSettings('com.example.Test1');
+      addTearDown(() async => await settings.close());
       expect(
           await settings.list(),
           containsAll([
@@ -976,6 +978,8 @@ void main() {
     test('get - preset', () async {
       // Test1 schema has values set in DConf.
       var settings = GSettings('com.example.Test1');
+      addTearDown(() async => await settings.close());
+
       expect(await settings.isSet('boolean-value'), isTrue);
       expect(await settings.getDefault('boolean-value'),
           equals(DBusBoolean(false)));
@@ -1049,6 +1053,8 @@ void main() {
     test('get - unset', () async {
       // Test2 schema has no values set in DConf.
       var settings = GSettings('com.example.Test2');
+      addTearDown(() async => await settings.close());
+
       expect(await settings.isSet('boolean-value'), isFalse);
       expect(await settings.get('boolean-value'), equals(DBusBoolean(false)));
 
@@ -1098,6 +1104,7 @@ void main() {
 
     test('unknown key', () async {
       var settings = GSettings('com.example.Test1');
+      addTearDown(() async => await settings.close());
       expect(() async => await settings.get('no-such-key'),
           throwsA(isA<GSettingsUnknownKeyException>()));
     });
@@ -1180,12 +1187,14 @@ void main() {
     test('relocatable schema - get', () async {
       var settings = GSettings('com.example.Relocatable',
           path: '/com/example/relocatable1/');
+      addTearDown(() async => await settings.close());
       expect(await settings.get('boolean-value'), equals(DBusBoolean(true)));
     });
 
     test('relocatable schema - get unset', () async {
       var settings = GSettings('com.example.Relocatable',
           path: '/com/example/relocatable2/');
+      addTearDown(() async => await settings.close());
       expect(await settings.get('boolean-value'), equals(DBusBoolean(false)));
     });
 
@@ -1198,6 +1207,7 @@ void main() {
 
     test('relocatable schema - no path', () async {
       var settings = GSettings('com.example.Relocatable');
+      addTearDown(() async => await settings.close());
       expect(() async => await settings.get('boolean-value'),
           throwsA(isA<GSettingsException>()));
     });
