@@ -196,26 +196,38 @@ void main() {
 
       expect(codec.decode('b', 'false'), equals(DBusBoolean(false)));
       expect(codec.decode('b', 'true'), equals(DBusBoolean(true)));
+      expect(() => codec.decode('b', ''), throwsFormatException);
+      expect(() => codec.decode('b', '!'), throwsFormatException);
 
       expect(codec.decode('y', '0x00'), equals(DBusByte(0x00)));
       expect(codec.decode('y', '0xde'), equals(DBusByte(0xde)));
       expect(codec.decode('y', '0xff'), equals(DBusByte(0xff)));
+      expect(() => codec.decode('y', ''), throwsFormatException);
+      expect(() => codec.decode('y', '!'), throwsFormatException);
 
       expect(codec.decode('n', '0'), equals(DBusInt16(0)));
       expect(codec.decode('n', '32767'), equals(DBusInt16(32767)));
       expect(codec.decode('n', '-1'), equals(DBusInt16(-1)));
       expect(codec.decode('n', '-32768'), equals(DBusInt16(-32768)));
+      expect(() => codec.decode('n', ''), throwsFormatException);
+      expect(() => codec.decode('n', '!'), throwsFormatException);
 
       expect(codec.decode('q', '0'), equals(DBusUint16(0)));
       expect(codec.decode('q', '65535'), equals(DBusUint16(65535)));
+      expect(() => codec.decode('q', ''), throwsFormatException);
+      expect(() => codec.decode('q', '!'), throwsFormatException);
 
       expect(codec.decode('i', '0'), equals(DBusInt32(0)));
       expect(codec.decode('i', '2147483647'), equals(DBusInt32(2147483647)));
       expect(codec.decode('i', '-1'), equals(DBusInt32(-1)));
       expect(codec.decode('i', '-2147483648'), equals(DBusInt32(-2147483648)));
+      expect(() => codec.decode('i', ''), throwsFormatException);
+      expect(() => codec.decode('i', '!'), throwsFormatException);
 
       expect(codec.decode('u', '0'), equals(DBusUint32(0)));
       expect(codec.decode('u', '4294967295'), equals(DBusUint32(4294967295)));
+      expect(() => codec.decode('u', ''), throwsFormatException);
+      expect(() => codec.decode('u', '!'), throwsFormatException);
 
       expect(codec.decode('x', '0'), equals(DBusInt64(0)));
       expect(codec.decode('x', '9223372036854775807'),
@@ -223,13 +235,19 @@ void main() {
       expect(codec.decode('x', '-1'), equals(DBusInt64(-1)));
       expect(codec.decode('x', '-9223372036854775808'),
           equals(DBusInt64(-9223372036854775808)));
+      expect(() => codec.decode('x', ''), throwsFormatException);
+      expect(() => codec.decode('x', '!'), throwsFormatException);
 
       expect(codec.decode('t', '0'), equals(DBusUint64(0)));
       //expect(codec.decode('t', '18446744073709551615'), equals(DBusUint64(0xffffffffffffffff)));
+      expect(() => codec.decode('t', ''), throwsFormatException);
+      expect(() => codec.decode('t', '!'), throwsFormatException);
 
       expect(codec.decode('d', '0.0'), equals(DBusDouble(0)));
       expect(codec.decode('d', '3.14159'), equals(DBusDouble(3.14159)));
       expect(codec.decode('d', '-3.14159'), equals(DBusDouble(-3.14159)));
+      expect(() => codec.decode('d', ''), throwsFormatException);
+      expect(() => codec.decode('d', '!'), throwsFormatException);
 
       expect(codec.decode('s', "''"), equals(DBusString('')));
       expect(codec.decode('s', "'hello world'"),
@@ -260,31 +278,42 @@ void main() {
       expect(() => codec.decode('s', r"'\u0'"), throwsFormatException);
       expect(() => codec.decode('s', r"'\U'"), throwsFormatException);
       expect(() => codec.decode('s', r"'\U0'"), throwsFormatException);
+      expect(() => codec.decode('s', ''), throwsFormatException);
+      expect(() => codec.decode('s', '!'), throwsFormatException);
 
       expect(codec.decode('o', "objectpath '/'"), equals(DBusObjectPath('/')));
       expect(codec.decode('o', "objectpath '/com/example/Foo'"),
           equals(DBusObjectPath('/com/example/Foo')));
       expect(() => codec.decode('o', "objectpath'/'"), throwsFormatException);
       expect(() => codec.decode('o', "'/'"), throwsFormatException);
+      expect(() => codec.decode('o', ''), throwsFormatException);
+      expect(() => codec.decode('o', '!'), throwsFormatException);
 
       expect(codec.decode('g', "signature ''"), equals(DBusSignature('')));
       expect(codec.decode('g', "signature 'a{sv}'"),
           equals(DBusSignature('a{sv}')));
       expect(() => codec.decode('g', "signature''"), throwsFormatException);
       expect(() => codec.decode('g', "''"), throwsFormatException);
+      expect(() => codec.decode('g', ''), throwsFormatException);
+      expect(() => codec.decode('g', '!'), throwsFormatException);
 
       expect(codec.decode('mi', 'nothing'),
           equals(DBusMaybe(DBusSignature('i'), null)));
       expect(codec.decode('mi', '42'),
           equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
+      expect(() => codec.decode('mi', ''), throwsFormatException);
+      expect(() => codec.decode('mi', '!'), throwsFormatException);
 
       expect(codec.decode('()', '()'), equals(DBusStruct([])));
       expect(codec.decode('(is)', "(42,'hello')"),
           equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
       expect(codec.decode('(is)', "(42, 'hello')"),
           equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
+      expect(() => codec.decode('(is)', "(42 'hello')"), throwsFormatException);
       expect(() => codec.decode('(is)', "42,'hello')"), throwsFormatException);
       expect(() => codec.decode('(is)', "(42,'hello'"), throwsFormatException);
+      expect(() => codec.decode('(is)', ''), throwsFormatException);
+      expect(() => codec.decode('(is)', '!'), throwsFormatException);
 
       expect(codec.decode('ai', '[]'), equals(DBusArray.int32([])));
       expect(codec.decode('ai', '[1,2,3]'), equals(DBusArray.int32([1, 2, 3])));
@@ -293,6 +322,8 @@ void main() {
       expect(() => codec.decode('ai', '1, 2, 3]'), throwsFormatException);
       expect(() => codec.decode('ai', '[1, 2, 3'), throwsFormatException);
       expect(() => codec.decode('ai', '[1 2 3]'), throwsFormatException);
+      expect(() => codec.decode('ai', ''), throwsFormatException);
+      expect(() => codec.decode('ai', '!'), throwsFormatException);
 
       expect(codec.decode('a{si}', '{}'),
           equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {})));
@@ -318,6 +349,8 @@ void main() {
           throwsFormatException);
       expect(() => codec.decode('a{si}', "{'one' 1, 'two' 2, 'three' 3}"),
           throwsFormatException);
+      expect(() => codec.decode('a{si}', ''), throwsFormatException);
+      expect(() => codec.decode('a{si}', '!'), throwsFormatException);
 
       expect(() => codec.decode('b', 'false false'), throwsFormatException);
       expect(() => codec.decode('%', 'false'), throwsArgumentError);
