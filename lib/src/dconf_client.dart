@@ -33,7 +33,7 @@ class DConfClient {
 
   /// Stream of key names that indicate when a value has changed.
   Stream<DConfNotifyEvent> get notify => _notifyController.stream;
-  final _notifyController = StreamController<DConfNotifyEvent>();
+  final _notifyController = StreamController<DConfNotifyEvent>.broadcast();
 
   /// The D-Bus buses this client is connected to.
   final DBusClient _systemBus;
