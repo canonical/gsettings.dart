@@ -313,5 +313,5 @@ class _GSettingsSchemaEntry {
 
   @override
   String toString() =>
-      '_GSettingsSchemaEntry(defaultValue: $defaultValue, words: $words, minimumValue: $minimumValue, maximumValue: $maximumValue, desktopOverrides: $desktopOverrides)';
+      '$runtimeType(defaultValue: $defaultValue, words: $words, minimumValue: $minimumValue, maximumValue: $maximumValue, desktopOverrides: $desktopOverrides)';
 }

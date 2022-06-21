@@ -24,7 +24,7 @@ class DConfNotifyEvent {
   const DConfNotifyEvent(this.prefix, this.paths, this.tag);
 
   @override
-  String toString() => "DConfNotifyEvent('$prefix', $paths, '$tag')";
+  String toString() => "$runtimeType('$prefix', $paths, '$tag')";
 }
 
 /// A client that connects to DConf.
@@ -250,7 +250,7 @@ class DConfEngineSourceUser extends DConfEngineSource {
       path: DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
 
   @override
-  String toString() => "DConfEngineSourceUser('$name')";
+  String toString() => "$runtimeType('$name')";
 }
 
 class DConfEngineSourceSystem extends DConfEngineSource {
@@ -269,7 +269,7 @@ class DConfEngineSourceSystem extends DConfEngineSource {
       path: DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
 
   @override
-  String toString() => "DConfEngineSourceSystem('$name')";
+  String toString() => "$runtimeType('$name')";
 }
 
 // Build a filename from parts.
