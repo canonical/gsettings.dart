@@ -185,10 +185,7 @@ class GSettings {
         case 102: // 'f' - flags
         case 101: // 'e' - enum
         case 99: // 'c' - choice
-          words = (item.children[1] as DBusArray)
-              .children
-              .map((value) => (value as DBusUint32).value)
-              .toList();
+          words = (item.children[1] as DBusArray).mapUint32().toList();
           break;
         case 114: // 'r' - range
           var range = item.children[1] as DBusStruct;
@@ -196,9 +193,7 @@ class GSettings {
           maximumValue = range.children[1];
           break;
         case 100: // 'd' - desktop overrides
-          desktopOverrides = (item.children[1] as DBusDict).children.map(
-              (key, value) => MapEntry(
-                  (key as DBusString).value, (value as DBusVariant).value));
+          desktopOverrides = (item.children[1] as DBusDict).mapStringVariant();
           break;
       }
     }
