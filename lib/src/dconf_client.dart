@@ -59,10 +59,7 @@ class DConfClient {
                 signature: DBusSignature('sass'))
             .map((signal) => DConfNotifyEvent(
                 (signal.values[0] as DBusString).value,
-                (signal.values[1] as DBusArray)
-                    .children
-                    .map((child) => (child as DBusString).value)
-                    .toList(),
+                (signal.values[1] as DBusArray).mapString().toList(),
                 (signal.values[2] as DBusString).value)));
       });
     };
