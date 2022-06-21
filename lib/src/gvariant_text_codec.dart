@@ -16,7 +16,8 @@ class GVariantTextCodec {
     var value = _decode(type, buffer);
     buffer.consumeWhitespace();
     if (!buffer.isEmpty) {
-      throw "Unexpected data after encoded GVariant: '${buffer.data.substring(buffer.offset)}'";
+      throw FormatException(
+          "Unexpected data after encoded GVariant: '${buffer.data.substring(buffer.offset)}'");
     }
     return value;
   }
@@ -231,7 +232,7 @@ class GVariantTextCodec {
         } else if (buffer.consume('false')) {
           value = false;
         } else {
-          throw 'Invalid boolean encoding';
+          throw FormatException('Invalid boolean encoding');
         }
         return DBusBoolean(value);
       case 'y': // byte
@@ -254,16 +255,17 @@ class GVariantTextCodec {
         return DBusString(_decodeString(buffer));
       case 'o': // object path
         if (!buffer.consume('objectpath ')) {
-          throw 'Invalid object path encoding';
+          throw FormatException('Invalid object path encoding');
         }
         return DBusObjectPath(_decodeString(buffer));
       case 'g': // signature
         if (!buffer.consume('signature ')) {
-          throw 'Invalid signature encoding';
+          throw FormatException('Invalid signature encoding');
         }
         return DBusSignature(_decodeString(buffer));
       default:
-        throw ("Unsupported GVariant type: '$type'");
+        throw ArgumentError.value(
+            type, 'type', "Unsupported GVariant type: '$type'");
     }
   }
 
@@ -309,11 +311,11 @@ class GVariantTextCodec {
   String _decodeString(_DecodeBuffer buffer) {
     var output = StringBuffer();
     if (buffer.isEmpty) {
-      throw 'No data for string';
+      throw FormatException('No data for string');
     }
     var quote = buffer.data[buffer.offset];
     if (quote != "'" && quote != '"') {
-      throw 'Missing start quote on string';
+      throw FormatException('Missing start quote on string');
     }
     var end = buffer.offset + 1;
     while (end < buffer.data.length) {
@@ -324,7 +326,7 @@ class GVariantTextCodec {
         return output.toString();
       } else if (c == r'\') {
         if (end == buffer.data.length - 1) {
-          throw 'Escape character at end of string';
+          throw FormatException('Escape character at end of string');
         }
         var escapeChar = buffer.data[end];
         end++;
@@ -352,7 +354,7 @@ class GVariantTextCodec {
             break;
           case 'u':
             if (end + 4 > buffer.data.length) {
-              throw ('Not enough space for unicode character');
+              throw FormatException('Not enough space for unicode character');
             }
             output.writeCharCode(
                 int.parse(buffer.data.substring(end, end + 4), radix: 16));
@@ -360,7 +362,7 @@ class GVariantTextCodec {
             break;
           case 'U':
             if (end + 8 > buffer.data.length) {
-              throw ('Not enough space for unicode character');
+              throw FormatException('Not enough space for unicode character');
             }
             output.writeCharCode(
                 int.parse(buffer.data.substring(end, end + 8), radix: 16));
@@ -378,33 +380,33 @@ class GVariantTextCodec {
       }
     }
 
-    throw 'Missing end quote on string';
+    throw FormatException('Missing end quote on string');
   }
 
   DBusStruct _decodeStruct(String type, _DecodeBuffer buffer) {
     if (!buffer.consume('(')) {
-      throw 'Missing start of struct';
+      throw FormatException('Missing start of struct');
     }
     var signature = DBusSignature(type.substring(1, type.length - 1));
     var children = <DBusValue>[];
     var first = true;
     for (var childSignature in signature.split()) {
       if (!first && !buffer.consume(',')) {
-        throw ('Missing comma between struct elements');
+        throw FormatException('Missing comma between struct elements');
       }
       first = false;
       buffer.consumeWhitespace();
       children.add(_decode(childSignature.value, buffer));
     }
     if (!buffer.consume(')')) {
-      throw 'Missing end of struct';
+      throw FormatException('Missing end of struct');
     }
     return DBusStruct(children);
   }
 
   DBusArray _decodeArray(String type, _DecodeBuffer buffer) {
     if (!buffer.consume('[')) {
-      throw 'Missing start of array';
+      throw FormatException('Missing start of array');
     }
     var childType = type.substring(1);
     var children = <DBusValue>[];
@@ -415,13 +417,13 @@ class GVariantTextCodec {
       }
 
       if (!first && !buffer.consume(',')) {
-        throw ('Missing comma between array elements');
+        throw FormatException('Missing comma between array elements');
       }
       first = false;
       buffer.consumeWhitespace();
       children.add(_decode(childType, buffer));
     }
-    throw 'Missing end of array';
+    throw FormatException('Missing end of array');
   }
 
   DBusDict _decodeDict(String type, _DecodeBuffer buffer) {
@@ -429,7 +431,7 @@ class GVariantTextCodec {
     var keyType = signatures[0].value;
     var valueType = signatures[1].value;
     if (!buffer.consume('{')) {
-      throw 'Missing start of dict';
+      throw FormatException('Missing start of dict');
     }
     var children = <DBusValue, DBusValue>{};
     var first = true;
@@ -440,7 +442,7 @@ class GVariantTextCodec {
       }
 
       if (!first && !buffer.consume(',')) {
-        throw ('Missing comma between dict elements');
+        throw FormatException('Missing comma between dict elements');
       }
       first = false;
       buffer.consumeWhitespace();
@@ -448,14 +450,14 @@ class GVariantTextCodec {
       var key = _decode(keyType, buffer);
       buffer.consumeWhitespace();
       if (!first && !buffer.consume(':')) {
-        throw ('Missing colon between dict key and value');
+        throw FormatException('Missing colon between dict key and value');
       }
       buffer.consumeWhitespace();
       var value = _decode(valueType, buffer);
 
       children[key] = value;
     }
-    throw 'Missing end of dict';
+    throw FormatException('Missing end of dict');
   }
 }
 

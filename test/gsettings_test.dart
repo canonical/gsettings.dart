@@ -238,14 +238,29 @@ void main() {
       expect(codec.decode('s', r"'\ue000'"), equals(DBusString('\ue000')));
       expect(
           codec.decode('s', r"'\U00100000'"), equals(DBusString('\u{100000}')));
+      expect(() => codec.decode('s', "'Hello world"), throwsFormatException);
+      expect(() => codec.decode('s', "Hello world'"), throwsFormatException);
+      expect(() => codec.decode('s', '"Hello world'), throwsFormatException);
+      expect(() => codec.decode('s', 'Hello world"'), throwsFormatException);
+      expect(() => codec.decode('s', '"Hello world\''), throwsFormatException);
+      expect(() => codec.decode('s', '\'Hello world"'), throwsFormatException);
+      expect(() => codec.decode('s', "'Hello world\\'"), throwsFormatException);
+      expect(() => codec.decode('s', r"'\u'"), throwsFormatException);
+      expect(() => codec.decode('s', r"'\u0'"), throwsFormatException);
+      expect(() => codec.decode('s', r"'\U'"), throwsFormatException);
+      expect(() => codec.decode('s', r"'\U0'"), throwsFormatException);
 
       expect(codec.decode('o', "objectpath '/'"), equals(DBusObjectPath('/')));
       expect(codec.decode('o', "objectpath '/com/example/Foo'"),
           equals(DBusObjectPath('/com/example/Foo')));
+      expect(() => codec.decode('o', "objectpath'/'"), throwsFormatException);
+      expect(() => codec.decode('o', "'/'"), throwsFormatException);
 
       expect(codec.decode('g', "signature ''"), equals(DBusSignature('')));
       expect(codec.decode('g', "signature 'a{sv}'"),
           equals(DBusSignature('a{sv}')));
+      expect(() => codec.decode('g', "signature''"), throwsFormatException);
+      expect(() => codec.decode('g', "''"), throwsFormatException);
 
       expect(codec.decode('mi', 'nothing'),
           equals(DBusMaybe(DBusSignature('i'), null)));
@@ -253,12 +268,20 @@ void main() {
           equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
 
       expect(codec.decode('()', '()'), equals(DBusStruct([])));
+      expect(codec.decode('(is)', "(42,'hello')"),
+          equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
       expect(codec.decode('(is)', "(42, 'hello')"),
           equals(DBusStruct([DBusInt32(42), DBusString('hello')])));
+      expect(() => codec.decode('(is)', "42,'hello')"), throwsFormatException);
+      expect(() => codec.decode('(is)', "(42,'hello'"), throwsFormatException);
 
       expect(codec.decode('ai', '[]'), equals(DBusArray.int32([])));
+      expect(codec.decode('ai', '[1,2,3]'), equals(DBusArray.int32([1, 2, 3])));
       expect(
           codec.decode('ai', '[1, 2, 3]'), equals(DBusArray.int32([1, 2, 3])));
+      expect(() => codec.decode('ai', '1, 2, 3]'), throwsFormatException);
+      expect(() => codec.decode('ai', '[1, 2, 3'), throwsFormatException);
+      expect(() => codec.decode('ai', '[1 2 3]'), throwsFormatException);
 
       expect(codec.decode('a{si}', '{}'),
           equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {})));
@@ -269,6 +292,24 @@ void main() {
             DBusString('two'): DBusInt32(2),
             DBusString('three'): DBusInt32(3)
           })));
+      expect(
+          codec.decode('a{si}', "{'one':1,'two':2,'three':3}"),
+          equals(DBusDict(DBusSignature('s'), DBusSignature('i'), {
+            DBusString('one'): DBusInt32(1),
+            DBusString('two'): DBusInt32(2),
+            DBusString('three'): DBusInt32(3)
+          })));
+      expect(() => codec.decode('a{si}', "'one':1,'two':2,'three':3}"),
+          throwsFormatException);
+      expect(() => codec.decode('a{si}', "{'one':1,'two':2,'three':3"),
+          throwsFormatException);
+      expect(() => codec.decode('a{si}', "{'one':1 'two':2 'three':3}"),
+          throwsFormatException);
+      expect(() => codec.decode('a{si}', "{'one' 1, 'two' 2, 'three' 3}"),
+          throwsFormatException);
+
+      expect(() => codec.decode('b', 'false false'), throwsFormatException);
+      expect(() => codec.decode('%', 'false'), throwsArgumentError);
     });
 
     test('binary encode', () async {
