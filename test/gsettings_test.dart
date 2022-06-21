@@ -7,11 +7,54 @@ import 'package:gsettings/src/gvariant_binary_codec.dart';
 import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
 
+class MockDConfWriter extends DBusObject {
+  final MockDConfServer server;
+
+  MockDConfWriter(this.server, String name)
+      : super(DBusObjectPath('/ca/desrt/dconf/Writer/$name'));
+
+  @override
+  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
+    if (methodCall.interface != 'ca.desrt.dconf.Writer') {
+      return DBusMethodErrorResponse.unknownInterface();
+    }
+
+    switch (methodCall.name) {
+      case 'Change':
+        var blob = (methodCall.values[0] as DBusArray).mapByte().toList();
+        return handleChange(blob);
+      default:
+        return DBusMethodErrorResponse.unknownMethod();
+    }
+  }
+
+  DBusMethodResponse handleChange(List<int> blob) {
+    var codec = GVariantBinaryCodec();
+    var data = ByteData.view(Uint8List.fromList(blob).buffer);
+    var c = codec.decode('a{smv}', data, endian: Endian.host) as DBusDict;
+    var changeset = c.children.map((key, value) => MapEntry(
+        (key as DBusString).value,
+        ((value as DBusMaybe).value as DBusVariant?)?.value));
+    for (var entry in changeset.entries) {
+      if (entry.value == null) {
+        server.values.remove(entry.key);
+      } else {
+        server.values[entry.key] = entry.value!;
+      }
+    }
+    return DBusMethodSuccessResponse([DBusString('')]);
+  }
+}
+
 class MockDConfServer extends DBusClient {
+  // Written values.
+  final values = <String, DBusValue>{};
+
   MockDConfServer(DBusAddress clientAddress) : super(clientAddress);
 
   Future<void> start() async {
     await requestName('ca.desrt.dconf');
+    await registerObject(MockDConfWriter(this, 'test'));
   }
 }
 
@@ -1057,6 +1100,81 @@ void main() {
       var settings = GSettings('com.example.Test1');
       expect(() async => await settings.get('no-such-key'),
           throwsA(isA<GSettingsUnknownKeyException>()));
+    });
+
+    test('set', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress);
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      var settings =
+          GSettings('com.example.Test2', sessionBus: DBusClient(clientAddress));
+
+      await settings.set('boolean-value', DBusBoolean(true));
+      expect(dconfServer.values['/com/example/test2/boolean-value'],
+          equals(DBusBoolean(true)));
+
+      await settings.set('byte-value', DBusByte(0x2a));
+      expect(dconfServer.values['/com/example/test2/byte-value'],
+          equals(DBusByte(0x2a)));
+
+      await settings.set('int16-value', DBusInt16(-16));
+      expect(dconfServer.values['/com/example/test2/int16-value'],
+          equals(DBusInt16(-16)));
+
+      await settings.set('uint16-value', DBusUint16(16));
+      expect(dconfServer.values['/com/example/test2/uint16-value'],
+          equals(DBusUint16(16)));
+
+      await settings.set('int32-value', DBusInt32(-32));
+      expect(dconfServer.values['/com/example/test2/int32-value'],
+          equals(DBusInt32(-32)));
+
+      await settings.set('uint32-value', DBusUint32(32));
+      expect(dconfServer.values['/com/example/test2/uint32-value'],
+          equals(DBusUint32(32)));
+
+      await settings.set('int64-value', DBusInt64(-64));
+      expect(dconfServer.values['/com/example/test2/int64-value'],
+          equals(DBusInt64(-64)));
+
+      await settings.set('uint64-value', DBusUint64(64));
+      expect(dconfServer.values['/com/example/test2/uint64-value'],
+          equals(DBusUint64(64)));
+
+      await settings.set('double-value', DBusDouble(3.14159));
+      expect(dconfServer.values['/com/example/test2/double-value'],
+          equals(DBusDouble(3.14159)));
+
+      await settings.set('string-value', DBusString('Hello World'));
+      expect(dconfServer.values['/com/example/test2/string-value'],
+          equals(DBusString('Hello World')));
+
+      await settings.set('enum-value', DBusString('enum1'));
+      expect(dconfServer.values['/com/example/test2/enum-value'],
+          equals(DBusString('enum1')));
+
+      await settings.set('flags-value', DBusArray.string(['flag1', 'flag4']));
+      expect(dconfServer.values['/com/example/test2/flags-value'],
+          equals(DBusArray.string(['flag1', 'flag4'])));
+
+      await settings.set('range-value', DBusUint32(32));
+      expect(dconfServer.values['/com/example/test2/range-value'],
+          equals(DBusUint32(32)));
+
+      await settings.set(
+          'object-path-value', DBusObjectPath('/com/example/Test2'));
+      expect(dconfServer.values['/com/example/test2/object-path-value'],
+          equals(DBusObjectPath('/com/example/Test2')));
+
+      await settings.set('signature-value', DBusSignature('a{sv}'));
+      expect(dconfServer.values['/com/example/test2/signature-value'],
+          equals(DBusSignature('a{sv}')));
     });
 
     test('relocatable schema - get', () async {
