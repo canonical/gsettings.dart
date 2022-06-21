@@ -32,7 +32,7 @@ class GSettings {
 
   /// A stream of settings key names as they change.
   Stream<List<String>> get keysChanged => _keysChangedController.stream;
-  final _keysChangedController = StreamController<List<String>>();
+  final _keysChangedController = StreamController<List<String>>.broadcast();
 
   // Client for communicating with DConf.
   final DConfClient _dconfClient;
