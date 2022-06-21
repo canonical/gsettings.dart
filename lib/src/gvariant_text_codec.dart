@@ -218,7 +218,9 @@ class GVariantTextCodec {
     if (type.startsWith('m')) {
       var childType = type.substring(1);
       DBusValue? value;
-      if (!buffer.consume('nothing')) {
+      if (childType.startsWith('m') && buffer.consume('just nothing')) {
+        value = DBusMaybe(DBusSignature(childType.substring(1)), null);
+      } else if (!buffer.consume('nothing')) {
         value = _decode(childType, buffer);
       }
       return DBusMaybe(DBusSignature(childType), value);

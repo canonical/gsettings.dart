@@ -170,6 +170,10 @@ void main() {
           codec.encode(DBusMaybe(DBusSignature('i'), null)), equals('nothing'));
       expect(codec.encode(DBusMaybe(DBusSignature('i'), DBusInt32(42))),
           equals('42'));
+      expect(
+          codec.encode(DBusMaybe(
+              DBusSignature('mms'), DBusMaybe(DBusSignature('ms'), null))),
+          equals('just nothing'));
 
       expect(codec.encode(DBusStruct([])), equals('()'));
       expect(codec.encode(DBusStruct([DBusInt32(42), DBusString('hello')])),
@@ -301,6 +305,10 @@ void main() {
           equals(DBusMaybe(DBusSignature('i'), null)));
       expect(codec.decode('mi', '42'),
           equals(DBusMaybe(DBusSignature('i'), DBusInt32(42))));
+      expect(
+          codec.decode('mms', 'just nothing'),
+          equals(DBusMaybe(
+              DBusSignature('ms'), DBusMaybe(DBusSignature('s'), null))));
       expect(() => codec.decode('mi', ''), throwsFormatException);
       expect(() => codec.decode('mi', '!'), throwsFormatException);
 
