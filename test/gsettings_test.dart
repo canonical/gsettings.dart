@@ -50,7 +50,11 @@ class MockDConfServer extends DBusClient {
   // Written values.
   final values = <String, DBusValue>{};
 
-  MockDConfServer(DBusAddress clientAddress) : super(clientAddress);
+  MockDConfServer(DBusAddress clientAddress,
+      {Map<String, DBusValue> values = const {}})
+      : super(clientAddress) {
+    this.values.addAll(values);
+  }
 
   Future<void> start() async {
     await requestName('ca.desrt.dconf');
@@ -1182,6 +1186,133 @@ void main() {
       await settings.set('signature-value', DBusSignature('a{sv}'));
       expect(dconfServer.values['/com/example/test2/signature-value'],
           equals(DBusSignature('a{sv}')));
+    });
+
+    test('unset', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress, values: {
+        '/com/example/test2/boolean-value': DBusBoolean(true),
+        '/com/example/test2/byte-value': DBusByte(0x2a),
+        '/com/example/test2/int16-value': DBusInt16(-16),
+        '/com/example/test2/uint16-value': DBusUint16(16),
+        '/com/example/test2/int32-value': DBusInt32(-32),
+        '/com/example/test2/uint32-value': DBusUint32(32),
+        '/com/example/test2/int64-value': DBusInt64(-64),
+        '/com/example/test2/uint64-value': DBusUint64(64),
+        '/com/example/test2/double-value': DBusDouble(3.14159),
+        '/com/example/test2/string-value': DBusString('Hello World'),
+        '/com/example/test2/enum-value': DBusString('enum1'),
+        '/com/example/test2/flags-value': DBusArray.string(['flag1', 'flag4']),
+        '/com/example/test2/range-value': DBusUint32(32),
+        '/com/example/test2/object-path-value':
+            DBusObjectPath('/com/example/Test2'),
+        '/com/example/test2/signature-value': DBusSignature('a{sv}')
+      });
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      var settings =
+          GSettings('com.example.Test2', sessionBus: DBusClient(clientAddress));
+
+      expect(dconfServer.values.containsKey('/com/example/test2/boolean-value'),
+          isTrue);
+      await settings.unset('boolean-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/boolean-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/byte-value'),
+          isTrue);
+      await settings.unset('byte-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/byte-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/int16-value'),
+          isTrue);
+      await settings.unset('int16-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/int16-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/uint16-value'),
+          isTrue);
+      await settings.unset('uint16-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/uint16-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/int32-value'),
+          isTrue);
+      await settings.unset('int32-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/int32-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/uint32-value'),
+          isTrue);
+      await settings.unset('uint32-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/uint32-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/int64-value'),
+          isTrue);
+      await settings.unset('int64-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/int64-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/uint64-value'),
+          isTrue);
+      await settings.unset('uint64-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/uint64-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/double-value'),
+          isTrue);
+      await settings.unset('double-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/double-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/string-value'),
+          isTrue);
+      await settings.unset('string-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/string-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/enum-value'),
+          isTrue);
+      await settings.unset('enum-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/enum-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/flags-value'),
+          isTrue);
+      await settings.unset('flags-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/flags-value'),
+          isFalse);
+
+      expect(dconfServer.values.containsKey('/com/example/test2/range-value'),
+          isTrue);
+      await settings.unset('range-value');
+      expect(dconfServer.values.containsKey('/com/example/test2/range-value'),
+          isFalse);
+
+      expect(
+          dconfServer.values
+              .containsKey('/com/example/test2/object-path-value'),
+          isTrue);
+      await settings.unset('object-path-value');
+      expect(
+          dconfServer.values
+              .containsKey('/com/example/test2/object-path-value'),
+          isFalse);
+
+      expect(
+          dconfServer.values.containsKey('/com/example/test2/signature-value'),
+          isTrue);
+      await settings.unset('signature-value');
+      expect(
+          dconfServer.values.containsKey('/com/example/test2/signature-value'),
+          isFalse);
     });
 
     test('relocatable schema - get', () async {
