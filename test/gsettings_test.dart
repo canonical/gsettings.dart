@@ -1315,6 +1315,33 @@ void main() {
           isFalse);
     });
 
+    test('set multiple', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress,
+          values: {'/com/example/test2/int32-value': DBusInt32(-32)});
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      var settings =
+          GSettings('com.example.Test2', sessionBus: DBusClient(clientAddress));
+
+      await settings.setAll({
+        'boolean-value': DBusBoolean(true),
+        'int32-value': null,
+        'string-value': DBusString('Hello World')
+      });
+      expect(
+          dconfServer.values,
+          equals({
+            '/com/example/test2/boolean-value': DBusBoolean(true),
+            '/com/example/test2/string-value': DBusString('Hello World')
+          }));
+    });
+
     test('relocatable schema - get', () async {
       var settings = GSettings('com.example.Relocatable',
           path: '/com/example/relocatable1/');
