@@ -44,21 +44,45 @@ class MockDConfWriter extends DBusObject {
     }
     return DBusMethodSuccessResponse([DBusString('')]);
   }
+
+  Future<void> emitNotify(String prefix, Iterable<String> paths,
+      {String tag = ''}) async {
+    await emitSignal('ca.desrt.dconf.Writer', 'Notify',
+        [DBusString(prefix), DBusArray.string(paths), DBusString(tag)]);
+  }
 }
 
 class MockDConfServer extends DBusClient {
   // Written values.
   final values = <String, DBusValue>{};
 
+  late final MockDConfWriter _writer;
+
   MockDConfServer(DBusAddress clientAddress,
       {Map<String, DBusValue> values = const {}})
       : super(clientAddress) {
     this.values.addAll(values);
+    _writer = MockDConfWriter(this, 'test');
   }
 
   Future<void> start() async {
     await requestName('ca.desrt.dconf');
-    await registerObject(MockDConfWriter(this, 'test'));
+    await registerObject(_writer);
+  }
+
+  Future<void> setValue(String path, DBusValue value) async {
+    var i = path.lastIndexOf('/');
+    String prefix;
+    List<String> paths;
+    if (i >= 0) {
+      prefix = path.substring(0, i + 1);
+      paths = [path.substring(i + 1)];
+    } else {
+      prefix = path;
+      paths = [];
+    }
+    values[path] = value;
+    await _writer.emitNotify(prefix, paths);
   }
 }
 
@@ -1125,6 +1149,7 @@ void main() {
 
       var settings =
           GSettings('com.example.Test2', sessionBus: DBusClient(clientAddress));
+      addTearDown(() async => await settings.close());
 
       await settings.set('boolean-value', DBusBoolean(true));
       expect(dconfServer.values['/com/example/test2/boolean-value'],
@@ -1340,6 +1365,33 @@ void main() {
             '/com/example/test2/boolean-value': DBusBoolean(true),
             '/com/example/test2/string-value': DBusString('Hello World')
           }));
+    });
+
+    test('key changed', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress);
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      var bus = DBusClient(clientAddress);
+      var settings = GSettings('com.example.Test2', sessionBus: bus);
+      addTearDown(() async => await settings.close());
+
+      expect(
+          settings.keysChanged,
+          emitsInOrder([
+            ['int32-value']
+          ]));
+
+      // Do round trip to server to ensure change is subscribed to.
+      await bus.ping();
+
+      await dconfServer.setValue(
+          '/com/example/test2/int32-value', DBusInt32(-32));
     });
 
     test('relocatable schema - get', () async {
