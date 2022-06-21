@@ -8,6 +8,15 @@ import 'package:gsettings/src/gvariant_binary_codec.dart';
 import 'package:gsettings/src/gvariant_text_codec.dart';
 import 'package:test/test.dart';
 
+// Unknown DBus value type that can't be encoded.
+class UnknownValue extends DBusValue {
+  @override
+  DBusSignature get signature => DBusSignature('%');
+
+  @override
+  dynamic toNative() => '%';
+}
+
 class MockDConfWriter extends DBusObject {
   final MockDConfServer server;
 
@@ -178,6 +187,8 @@ void main() {
             DBusString('three'): DBusInt32(3)
           })),
           equals("{'one': 1, 'two': 2, 'three': 3}"));
+
+      expect(() => codec.encode(UnknownValue()), throwsFormatException);
     });
 
     test('text decode', () async {

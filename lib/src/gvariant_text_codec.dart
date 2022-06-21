@@ -97,7 +97,7 @@ class GVariantTextCodec {
       }
       buffer.write('}');
     } else {
-      throw ("Unsupported DBus type: '$value'");
+      throw FormatException("Unsupported DBus type: '$value'");
     }
   }
 
