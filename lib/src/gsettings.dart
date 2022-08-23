@@ -165,35 +165,34 @@ class GSettings {
 
   _GSettingsSchemaEntry _getSchemaEntry(
       GVariantDatabaseTable table, String name) {
-    var entry = table.lookup(name);
+    var entry = table.lookup(name)?.asStruct();
     if (entry == null) {
       throw GSettingsUnknownKeyException(schemaName, name);
     }
-    entry as DBusStruct;
-    var defaultValue = entry.children[0];
+    var defaultValue = entry[0];
     List<int>? words;
     DBusValue? minimumValue;
     DBusValue? maximumValue;
     Map<String, DBusValue>? desktopOverrides;
-    for (var item in entry.children.skip(1)) {
-      item as DBusStruct;
-      switch ((item.children[0] as DBusByte).value) {
+    for (var item in entry.skip(1)) {
+      var valueEntry = item.asStruct();
+      switch (valueEntry[0].asByte()) {
         case 108: // 'l' - localization
-          //var l10n = (item.children[1] as DBusByte).value; // 'm': messages, 't': time.
-          //var unparsedDefaultValue = (item.children[2] as DBusString).value;
+          //var l10n = valueEntry[1].asByte(); // 'm': messages, 't': time.
+          //var unparsedDefaultValue = (valueEntry[2].asString();
           break;
         case 102: // 'f' - flags
         case 101: // 'e' - enum
         case 99: // 'c' - choice
-          words = (item.children[1] as DBusArray).mapUint32().toList();
+          words = valueEntry[1].asUint32Array().toList();
           break;
         case 114: // 'r' - range
-          var range = item.children[1] as DBusStruct;
-          minimumValue = range.children[0];
-          maximumValue = range.children[1];
+          var range = valueEntry[1].asStruct();
+          minimumValue = range[0];
+          maximumValue = range[1];
           break;
         case 100: // 'd' - desktop overrides
-          desktopOverrides = (item.children[1] as DBusDict).mapStringVariant();
+          desktopOverrides = valueEntry[1].asStringVariantDict();
           break;
       }
     }
@@ -233,7 +232,7 @@ class GSettings {
       throw GSettingsException(
           'Path provided for non-relocatable schema $schemaName');
     }
-    return (pathValue as DBusString).value;
+    return pathValue.asString();
   }
 }
 

@@ -433,8 +433,8 @@ class GVariantBinaryCodec {
         _parseGVariantArray('($keyType$valueType)', data, endian: endian);
     var values = <DBusValue, DBusValue>{};
     for (var child in array.children) {
-      var keyValue = child as DBusStruct;
-      values[keyValue.children[0]] = keyValue.children[1];
+      var keyValue = child.asStruct();
+      values[keyValue[0]] = keyValue[1];
     }
     return DBusDict(DBusSignature(keyType), DBusSignature(valueType), values);
   }

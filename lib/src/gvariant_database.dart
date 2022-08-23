@@ -105,7 +105,7 @@ class GVariantDatabaseTable {
       return null;
     }
     var codec = GVariantBinaryCodec();
-    return (codec.decode('v', value, endian: endian) as DBusVariant).value;
+    return codec.decode('v', value, endian: endian).asVariant();
   }
 
   GVariantDatabaseTable? lookupTable(String key) {

@@ -31,7 +31,7 @@ class MockDConfWriter extends DBusObject {
 
     switch (methodCall.name) {
       case 'Change':
-        var blob = (methodCall.values[0] as DBusArray).mapByte().toList();
+        var blob = methodCall.values[0].asByteArray().toList();
         return handleChange(blob);
       default:
         return DBusMethodErrorResponse.unknownMethod();
@@ -41,10 +41,11 @@ class MockDConfWriter extends DBusObject {
   DBusMethodResponse handleChange(List<int> blob) {
     var codec = GVariantBinaryCodec();
     var data = ByteData.view(Uint8List.fromList(blob).buffer);
-    var c = codec.decode('a{smv}', data, endian: Endian.host) as DBusDict;
-    var changeset = c.children.map((key, value) => MapEntry(
-        (key as DBusString).value,
-        ((value as DBusMaybe).value as DBusVariant?)?.value));
+    var changeset = codec
+        .decode('a{smv}', data, endian: Endian.host)
+        .asDict()
+        .map((key, value) =>
+            MapEntry(key.asString(), value.asMaybe()?.asVariant()));
     for (var entry in changeset.entries) {
       if (entry.value == null) {
         server.values.remove(entry.key);

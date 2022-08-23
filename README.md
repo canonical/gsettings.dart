@@ -4,13 +4,12 @@
 Provides a client to use [GSettings](https://developer.gnome.org/gio/stable/GSettings.html) - a settings database used for storing user preferences on Linux.
 
 ```dart
-import 'package:dbus/dbus.dart';
 import 'package:gsettings/gsettings.dart';
 
 void main() async {
   var settings = GSettings('org.gnome.desktop.interface');
   var value = await settings.get('font-name');
-  var font = (value as DBusString).value;
+  var font = value.asString();
   print('Current font set to: $font');
   await settings.close();
 }
