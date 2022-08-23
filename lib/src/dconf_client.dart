@@ -58,9 +58,9 @@ class DConfClient {
                 name: 'Notify',
                 signature: DBusSignature('sass'))
             .map((signal) => DConfNotifyEvent(
-                (signal.values[0] as DBusString).value,
-                (signal.values[1] as DBusArray).mapString().toList(),
-                (signal.values[2] as DBusString).value)));
+                signal.values[0].asString(),
+                signal.values[1].asStringArray().toList(),
+                signal.values[2].asString())));
       });
     };
   }
@@ -107,7 +107,7 @@ class DConfClient {
         'Change',
         [DBusArray.byte(codec.encode(changeset, endian: Endian.host))],
         replySignature: DBusSignature('s'));
-    return (result.values[0] as DBusString).value;
+    return result.values[0].asString();
   }
 
   /// Terminates the connection to the DConf daemon. If a client remains unclosed, the Dart process may not terminate.
