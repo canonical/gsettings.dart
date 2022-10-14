@@ -242,7 +242,7 @@ List<Directory> _getSchemaDirs() {
 
   var schemaDir = Platform.environment['GSETTINGS_SCHEMA_DIR'];
   if (schemaDir != null) {
-    schemaDirs.add(Directory(schemaDir));
+    schemaDirs.addAll(schemaDir.split(':').map((path) => Directory(path)));
   }
 
   for (var dataDir in dataDirs) {
