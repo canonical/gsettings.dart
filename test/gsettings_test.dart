@@ -1592,5 +1592,51 @@ void main() {
               GSettings('com.example.Relocatable', path: '/com//relocatable1/'),
           throwsArgumentError);
     });
+
+    test('memory backend', () async {
+      var settings = GSettings('com.example.Test2', backendName: 'memory');
+
+      // Memory backend never emits key change events.
+      settings.keysChanged.listen(expectAsync1((keys) {}, count: 0));
+
+      // Check can write and read back a value in the memory backend.
+      addTearDown(() async => await settings.close());
+      expect(await settings.isSet('string-value'), isFalse);
+      expect(await settings.getDefault('string-value'), equals(DBusString('')));
+      expect(await settings.get('string-value'), equals(DBusString('')));
+      await settings.set('string-value', DBusString('Hello World'));
+      expect(await settings.get('string-value'),
+          equals(DBusString('Hello World')));
+      expect(await settings.isSet('string-value'), isTrue);
+
+      // Check can clear a value.
+      await settings.set('uint32-value', DBusUint32(42));
+      expect(await settings.isSet('uint32-value'), isTrue);
+      await settings.unset('uint32-value');
+      expect(await settings.isSet('uint32-value'), isFalse);
+
+      // Check value doesn't persist.
+      var settings2 = GSettings('com.example.Test2', backendName: 'memory');
+      addTearDown(() async => await settings2.close());
+      expect(await settings2.get('string-value'), equals(DBusString('')));
+    });
+
+    test('unsupported backend', () async {
+      var server = DBusServer();
+      addTearDown(() async => await server.close());
+      var clientAddress = await server
+          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+
+      var dconfServer = MockDConfServer(clientAddress);
+      addTearDown(() async => await dconfServer.close());
+      await dconfServer.start();
+
+      // Unsupported backend will fallback to DConf.
+      var settings = GSettings('com.example.Test2',
+          backendName: 'UNSUPPORTED', sessionBus: DBusClient(clientAddress));
+      await settings.set('string-value', DBusString('Hello World'));
+      expect(dconfServer.values['/com/example/test2/string-value'],
+          equals(DBusString('Hello World')));
+    });
   });
 }
