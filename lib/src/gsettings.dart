@@ -4,7 +4,8 @@ import 'dart:io';
 import 'package:dbus/dbus.dart';
 import 'package:xdg_directories/xdg_directories.dart';
 
-import 'dconf_client.dart';
+import 'gsettings_backend.dart';
+import 'gsettings_dconf_backend.dart';
 import 'gvariant_database.dart';
 
 /// Get the names of the installed GSettings schemas.
@@ -34,16 +35,16 @@ class GSettings {
   Stream<List<String>> get keysChanged => _keysChangedController.stream;
   final _keysChangedController = StreamController<List<String>>.broadcast();
 
-  // Client for communicating with DConf.
-  final DConfClient _dconfClient;
+  // Backend in use.
+  final GSettingsBackend _backend;
 
   /// Creates an object to access settings from the shema with name [schemaName].
   /// If this schema is relocatable [path] is required to be set.
   /// If the schema is not relocatable an exception will be thrown if [path] is set.
   GSettings(this.schemaName,
       {this.path, DBusClient? systemBus, DBusClient? sessionBus})
-      : _dconfClient =
-            DConfClient(systemBus: systemBus, sessionBus: sessionBus) {
+      : _backend = GSettingsDConfBackend(
+            systemBus: systemBus, sessionBus: sessionBus) {
     if (path != null) {
       if (path!.isEmpty) {
         throw ArgumentError.value(path, 'path', 'Empty path given');
@@ -64,10 +65,7 @@ class GSettings {
     _keysChangedController.onListen = () {
       _load().then((table) {
         var path = _getPath(table);
-        _keysChangedController.addStream(_dconfClient.notify
-            .map((event) => event.paths.isEmpty
-                ? [event.prefix]
-                : event.paths.map((path) => event.prefix + path))
+        _keysChangedController.addStream(_backend.valuesChanged
             .where((keys) => keys.any((key) => key.startsWith(path)))
             .map((keys) =>
                 keys.map((key) => key.substring(path.length)).toList()));
@@ -90,13 +88,8 @@ class GSettings {
     var schemaEntry = _getSchemaEntry(table, name);
     var path = _getPath(table);
 
-    // Lookup user value in DConf.
-    var value = await _dconfClient.read(path + name);
-    if (value != null) {
-      return value;
-    }
-
-    return _getDefaultValue(schemaEntry);
+    var value = await _backend.get(path + name);
+    return value ?? _getDefaultValue(schemaEntry);
   }
 
   /// Reads the default value of the settings key with [name].
@@ -113,7 +106,7 @@ class GSettings {
   Future<bool> isSet(String name) async {
     var table = await _load();
     var path = _getPath(table);
-    return await _dconfClient.read(path + name) != null;
+    return await _backend.get(path + name) != null;
   }
 
   /// Writes a single settings keys.
@@ -121,7 +114,7 @@ class GSettings {
   Future<void> set(String name, DBusValue value) async {
     var table = await _load();
     var path = _getPath(table);
-    await _dconfClient.write({path + name: value});
+    await _backend.set({path + name: value});
   }
 
   /// Removes a setting value.
@@ -129,7 +122,7 @@ class GSettings {
   Future<void> unset(String name) async {
     var table = await _load();
     var path = _getPath(table);
-    await _dconfClient.write({path + name: null});
+    await _backend.set({path + name: null});
   }
 
   /// Writes multiple settings keys in a single transaction.
@@ -137,13 +130,13 @@ class GSettings {
   Future<void> setAll(Map<String, DBusValue?> values) async {
     var table = await _load();
     var path = _getPath(table);
-    await _dconfClient
-        .write(values.map((name, value) => MapEntry(path + name, value)));
+    await _backend
+        .set(values.map((name, value) => MapEntry(path + name, value)));
   }
 
   /// Terminates any open connections. If a settings object remains unclosed, the Dart process may not terminate.
   Future<void> close() async {
-    await _dconfClient.close();
+    await _backend.close();
   }
 
   // Get the database entry for this schema.
