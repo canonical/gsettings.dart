@@ -7,6 +7,7 @@ import 'package:xdg_directories/xdg_directories.dart';
 import 'gsettings_backend.dart';
 import 'gsettings_dconf_backend.dart';
 import 'gsettings_memory_backend.dart';
+import 'gsettings_keyfile_backend.dart';
 import 'gvariant_database.dart';
 
 /// Get the names of the installed GSettings schemas.
@@ -46,20 +47,24 @@ class GSettings {
       {this.path,
       DBusClient? systemBus,
       DBusClient? sessionBus,
-      String? backendName}) {
-    backendName ??= Platform.environment['GSETTINGS_BACKEND'];
-    GSettingsBackend? backend;
-    switch (backendName) {
-      case 'memory':
-        backend = GSettingsMemoryBackend();
-        break;
-      case 'dconf':
-      case null:
-        // Handled below
-        break;
-      default:
-        stderr.write("Unsupported gsettings backend '$backendName'\n");
-        break;
+      GSettingsBackend? backend}) {
+    if (backend == null) {
+      var backendName = Platform.environment['GSETTINGS_BACKEND'];
+      switch (backendName) {
+        case 'memory':
+          backend = GSettingsMemoryBackend();
+          break;
+        case 'keyfile':
+          backend = GSettingsKeyfileBackend();
+          break;
+        case 'dconf':
+        case null:
+          // Handled below
+          break;
+        default:
+          stderr.write("Unsupported gsettings backend '$backendName'\n");
+          break;
+      }
     }
     // Default to DConf
     _backend = backend ??
@@ -108,7 +113,8 @@ class GSettings {
     var schemaEntry = _getSchemaEntry(table, name);
     var path = _getPath(table);
 
-    var value = await _backend.get(path + name);
+    var value =
+        await _backend.get(path + name, schemaEntry.defaultValue.signature);
     return value ?? _getDefaultValue(schemaEntry);
   }
 
@@ -125,8 +131,11 @@ class GSettings {
   /// Check if the settings key with [name] is set.
   Future<bool> isSet(String name) async {
     var table = await _load();
+    var schemaEntry = _getSchemaEntry(table, name);
     var path = _getPath(table);
-    return await _backend.get(path + name) != null;
+    return await _backend.get(
+            path + name, schemaEntry.defaultValue.signature) !=
+        null;
   }
 
   /// Writes a single settings keys.

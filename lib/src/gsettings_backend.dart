@@ -6,7 +6,7 @@ abstract class GSettingsBackend {
   Stream<List<String>> get valuesChanged;
 
   /// Get the value at [path] if it exists.
-  Future<DBusValue?> get(String path);
+  Future<DBusValue?> get(String path, DBusSignature signature);
 
   /// Sets multiple values.
   Future<void> set(Map<String, DBusValue?> values);
