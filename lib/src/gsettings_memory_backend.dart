@@ -17,7 +17,7 @@ class GSettingsMemoryBackend implements GSettingsBackend {
   GSettingsMemoryBackend();
 
   @override
-  Future<DBusValue?> get(String path) async {
+  Future<DBusValue?> get(String path, DBusSignature signature) async {
     return _values[path];
   }
 

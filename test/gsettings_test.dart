@@ -1594,7 +1594,8 @@ void main() {
     });
 
     test('memory backend', () async {
-      var settings = GSettings('com.example.Test2', backendName: 'memory');
+      var settings =
+          GSettings('com.example.Test2', backend: GSettingsMemoryBackend());
 
       // Memory backend never emits key change events.
       settings.keysChanged.listen(expectAsync1((keys) {}, count: 0));
@@ -1616,27 +1617,113 @@ void main() {
       expect(await settings.isSet('uint32-value'), isFalse);
 
       // Check value doesn't persist.
-      var settings2 = GSettings('com.example.Test2', backendName: 'memory');
+      var settings2 =
+          GSettings('com.example.Test2', backend: GSettingsMemoryBackend());
       addTearDown(() async => await settings2.close());
       expect(await settings2.get('string-value'), equals(DBusString('')));
     });
 
-    test('unsupported backend', () async {
-      var server = DBusServer();
-      addTearDown(() async => await server.close());
-      var clientAddress = await server
-          .listenAddress(DBusAddress.unix(dir: Directory.systemTemp));
+    test('keyfile backend', () async {
+      // Make a temporary location for the keyfile
+      var dir = await Directory.systemTemp.createTemp('gsettings-dart-test');
+      var file = File('${dir.path}/keyfile');
+      addTearDown(() async {
+        await dir.delete(recursive: true);
+      });
 
-      var dconfServer = MockDConfServer(clientAddress);
-      addTearDown(() async => await dconfServer.close());
-      await dconfServer.start();
-
-      // Unsupported backend will fallback to DConf.
       var settings = GSettings('com.example.Test2',
-          backendName: 'UNSUPPORTED', sessionBus: DBusClient(clientAddress));
+          backend: GSettingsKeyfileBackend(file: file));
+
+      // Check can write and read back a value.
+      addTearDown(() async => await settings.close());
+      expect(await settings.isSet('string-value'), isFalse);
+      expect(await settings.getDefault('string-value'), equals(DBusString('')));
+      expect(await settings.get('string-value'), equals(DBusString('')));
       await settings.set('string-value', DBusString('Hello World'));
-      expect(dconfServer.values['/com/example/test2/string-value'],
+      expect(await settings.get('string-value'),
           equals(DBusString('Hello World')));
+      expect(await settings.isSet('string-value'), isTrue);
+
+      // Check can clear a value.
+      await settings.set('uint32-value', DBusUint32(42));
+      expect(await settings.isSet('uint32-value'), isTrue);
+      await settings.unset('uint32-value');
+      expect(await settings.isSet('uint32-value'), isFalse);
+
+      // Check value persists.
+      var settings2 = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+      addTearDown(() async => await settings2.close());
+      expect(await settings2.get('string-value'),
+          equals(DBusString('Hello World')));
+
+      // Use second schema on same file.
+      var settings3 = GSettings('com.example.Test1',
+          backend: GSettingsKeyfileBackend(file: file));
+      await settings3.set('int32-value', DBusUint32(99));
+
+      // Check file contents.
+      expect(
+          await file.readAsString(),
+          equals('[com/example/test1]\n'
+              'int32-value=99\n'
+              '\n'
+              '[com/example/test2]\n'
+              'string-value=\'Hello World\'\n'
+              ''));
+    });
+
+    test('keyfile backend - key changed', () async {
+      // Make a temporary location for the keyfile
+      var dir = await Directory.systemTemp.createTemp('gsettings-dart-test');
+      var file = File('${dir.path}/keyfile');
+      addTearDown(() async {
+        await dir.delete(recursive: true);
+      });
+
+      var settings1 = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+
+      expect(
+          settings1.keysChanged,
+          emitsInOrder([
+            ['int32-value']
+          ]));
+
+      // Read to ensure the above subscription is ready.
+      expect(await settings1.get('int32-value'), equals(DBusInt32(0)));
+
+      // Check a second client changing a value notifies the first client.
+      var settings2 = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+      await settings2.set('int32-value', DBusInt32(42));
+    });
+
+    test('keyfile backend - invalid file', () async {
+      // Make a temporary location for the keyfile
+      var dir = await Directory.systemTemp.createTemp('gsettings-dart-test');
+      var file = File('${dir.path}/keyfile');
+      addTearDown(() async {
+        await dir.delete(recursive: true);
+      });
+
+      // Not a keyfile.
+      await file.writeAsString('INVALID\n');
+      var settings = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+
+      // Missing section.
+      await file.writeAsString('number=42\n');
+      settings = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+
+      // Missing '=' in key value.
+      await file.writeAsString('[com/example]\nnumber\n');
+      settings = GSettings('com.example.Test2',
+          backend: GSettingsKeyfileBackend(file: file));
+      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
     });
   });
 }

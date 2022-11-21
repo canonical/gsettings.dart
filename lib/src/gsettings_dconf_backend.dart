@@ -19,7 +19,7 @@ class GSettingsDConfBackend implements GSettingsBackend {
             DConfClient(systemBus: systemBus, sessionBus: sessionBus);
 
   @override
-  Future<DBusValue?> get(String path) async {
+  Future<DBusValue?> get(String path, DBusSignature signature) async {
     return await _dconfClient.read(path);
   }
 
