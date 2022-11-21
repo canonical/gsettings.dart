@@ -6,6 +6,7 @@ import 'package:xdg_directories/xdg_directories.dart';
 
 import 'gsettings_backend.dart';
 import 'gsettings_dconf_backend.dart';
+import 'gsettings_memory_backend.dart';
 import 'gvariant_database.dart';
 
 /// Get the names of the installed GSettings schemas.
@@ -36,15 +37,34 @@ class GSettings {
   final _keysChangedController = StreamController<List<String>>.broadcast();
 
   // Backend in use.
-  final GSettingsBackend _backend;
+  late final GSettingsBackend _backend;
 
   /// Creates an object to access settings from the shema with name [schemaName].
   /// If this schema is relocatable [path] is required to be set.
   /// If the schema is not relocatable an exception will be thrown if [path] is set.
   GSettings(this.schemaName,
-      {this.path, DBusClient? systemBus, DBusClient? sessionBus})
-      : _backend = GSettingsDConfBackend(
-            systemBus: systemBus, sessionBus: sessionBus) {
+      {this.path,
+      DBusClient? systemBus,
+      DBusClient? sessionBus,
+      String? backendName}) {
+    backendName ??= Platform.environment['GSETTINGS_BACKEND'];
+    GSettingsBackend? backend;
+    switch (backendName) {
+      case 'memory':
+        backend = GSettingsMemoryBackend();
+        break;
+      case 'dconf':
+      case null:
+        // Handled below
+        break;
+      default:
+        stderr.write("Unsupported gsettings backend '$backendName'\n");
+        break;
+    }
+    // Default to DConf
+    _backend = backend ??
+        GSettingsDConfBackend(systemBus: systemBus, sessionBus: sessionBus);
+
     if (path != null) {
       if (path!.isEmpty) {
         throw ArgumentError.value(path, 'path', 'Empty path given');
