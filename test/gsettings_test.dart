@@ -1633,9 +1633,9 @@ void main() {
 
       var settings = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
+      addTearDown(() async => await settings.close());
 
       // Check can write and read back a value.
-      addTearDown(() async => await settings.close());
       expect(await settings.isSet('string-value'), isFalse);
       expect(await settings.getDefault('string-value'), equals(DBusString('')));
       expect(await settings.get('string-value'), equals(DBusString('')));
@@ -1660,6 +1660,7 @@ void main() {
       // Use second schema on same file.
       var settings3 = GSettings('com.example.Test1',
           backend: GSettingsKeyfileBackend(file: file));
+      addTearDown(() async => await settings3.close());
       await settings3.set('int32-value', DBusUint32(99));
 
       // Check file contents.
@@ -1683,6 +1684,7 @@ void main() {
 
       var settings1 = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
+      addTearDown(() async => await settings1.close());
 
       expect(
           settings1.keysChanged,
@@ -1696,6 +1698,7 @@ void main() {
       // Check a second client changing a value notifies the first client.
       var settings2 = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
+      addTearDown(() async => await settings2.close());
       await settings2.set('int32-value', DBusInt32(42));
     });
 
@@ -1709,21 +1712,24 @@ void main() {
 
       // Not a keyfile.
       await file.writeAsString('INVALID\n');
-      var settings = GSettings('com.example.Test2',
+      var settings1 = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
-      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+      addTearDown(() async => await settings1.close());
+      expect(await settings1.get('int32-value'), equals(DBusInt32(0)));
 
       // Missing section.
       await file.writeAsString('number=42\n');
-      settings = GSettings('com.example.Test2',
+      var settings2 = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
-      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+      addTearDown(() async => await settings2.close());
+      expect(await settings2.get('int32-value'), equals(DBusInt32(0)));
 
       // Missing '=' in key value.
       await file.writeAsString('[com/example]\nnumber\n');
-      settings = GSettings('com.example.Test2',
+      var settings3 = GSettings('com.example.Test2',
           backend: GSettingsKeyfileBackend(file: file));
-      expect(await settings.get('int32-value'), equals(DBusInt32(0)));
+      addTearDown(() async => await settings3.close());
+      expect(await settings3.get('int32-value'), equals(DBusInt32(0)));
     });
   });
 }
