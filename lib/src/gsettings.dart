@@ -275,6 +275,9 @@ List<Directory> _getSchemaDirs() {
     path += 'glib-2.0/schemas';
     schemaDirs.add(Directory(path));
   }
+
+  schemaDirs.add(Directory('${dataHome.path}/glib-2.0/schemas'));
+
   return schemaDirs;
 }
 
