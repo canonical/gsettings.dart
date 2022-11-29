@@ -273,6 +273,11 @@ List<Directory> _getSchemaDirs() {
       path += '/';
     }
     path += 'glib-2.0/schemas';
+
+    if (!File(path + '/gschemas.compiled').existsSync()) {
+      continue;
+    }
+
     schemaDirs.add(Directory(path));
   }
 
