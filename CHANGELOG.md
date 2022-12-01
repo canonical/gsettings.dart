@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7
+
+* Look for schemas in XDG_DATA_HOME.
+
 ## 0.2.6
 
 * Support memory and keyfile backends.
