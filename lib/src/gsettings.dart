@@ -12,9 +12,9 @@ import 'gvariant_database.dart';
 
 /// Get the names of the installed GSettings schemas.
 /// These schemas can be accessed using a [GSettings] object.
-Future<List<String>> listGSettingsSchemas() async {
+Future<List<String>> listGSettingsSchemas({List<String>? schemaDirs}) async {
   var schemaNames = <String>{};
-  for (var dir in _getSchemaDirs()) {
+  for (var dir in _getSchemaDirs(schemaDirsPath: schemaDirs)) {
     try {
       var database = GVariantDatabase('${dir.path}/gschemas.compiled');
       schemaNames.addAll(await database.list(dir: ''));
@@ -40,6 +40,9 @@ class GSettings {
   // Backend in use.
   late final GSettingsBackend _backend;
 
+  /// List of directories that contain schemas.
+  late final List<Directory> _schemaDirs;
+
   /// Creates an object to access settings from the shema with name [schemaName].
   /// If this schema is relocatable [path] is required to be set.
   /// If the schema is not relocatable an exception will be thrown if [path] is set.
@@ -47,7 +50,8 @@ class GSettings {
       {this.path,
       DBusClient? systemBus,
       DBusClient? sessionBus,
-      GSettingsBackend? backend}) {
+      GSettingsBackend? backend,
+      List<String>? schemaDirs}) {
     if (backend == null) {
       var backendName = Platform.environment['GSETTINGS_BACKEND'];
       switch (backendName) {
@@ -87,6 +91,9 @@ class GSettings {
             path, 'path', 'Path must not contain two adjacent slashes (//)');
       }
     }
+
+    _schemaDirs = _getSchemaDirs(schemaDirsPath: schemaDirs);
+
     _keysChangedController.onListen = () {
       _load().then((table) {
         var path = _getPath(table);
@@ -170,7 +177,7 @@ class GSettings {
 
   // Get the database entry for this schema.
   Future<GVariantDatabaseTable> _load() async {
-    for (var dir in _getSchemaDirs()) {
+    for (var dir in _schemaDirs) {
       var database = GVariantDatabase('${dir.path}/gschemas.compiled');
       try {
         var table = await database.lookupTable(schemaName);
@@ -258,13 +265,20 @@ class GSettings {
   }
 }
 
-// Get the directories that contain schemas.
-List<Directory> _getSchemaDirs() {
+/// Get the directories that contain schemas. If [schemaDirsPath] is null or empty
+/// it uses the GSETTINGS_SCHEMA_DIR environment variable
+List<Directory> _getSchemaDirs({List<String>? schemaDirsPath}) {
   var schemaDirs = <Directory>[];
 
-  var schemaDir = Platform.environment['GSETTINGS_SCHEMA_DIR'];
-  if (schemaDir != null) {
-    schemaDirs.addAll(schemaDir.split(':').map((path) => Directory(path)));
+  // if no schema directory is provided, fall back to use
+  // GSETTINGS_SCHEMA_DIR environment variable
+  if (schemaDirsPath == null || schemaDirsPath.isEmpty) {
+    var schemaDir = Platform.environment['GSETTINGS_SCHEMA_DIR'];
+    if (schemaDir != null) {
+      schemaDirs.addAll(schemaDir.split(':').map((path) => Directory(path)));
+    }
+  } else {
+    schemaDirs.addAll(schemaDirsPath.map((path) => Directory(path)));
   }
 
   for (var dataDir in dataDirs) {
