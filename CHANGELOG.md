@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.8
+
+* feat: support to specify schema directories
+* chore: bump dependency xdg_directories to ^1.0.0
+
 ## 0.2.7
 
 * Look for schemas in XDG_DATA_HOME.
