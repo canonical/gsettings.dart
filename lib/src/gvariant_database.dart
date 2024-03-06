@@ -117,6 +117,10 @@ class GVariantDatabaseTable {
   }
 
   ByteData? _lookup(String key, {required String type}) {
+    if (_nBuckets == 0) {
+      return null;
+    }
+
     var hash = _hashKey(key);
     var bucket = hash % _nBuckets;
     var start = data.getUint32(_bucketOffset + bucket * 4, endian);
