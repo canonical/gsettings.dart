@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     container:
       image: dart:stable
@@ -30,7 +30,7 @@ jobs:
           DCONF_PROFILE: ${{ github.workspace }}/test/dconf/test-profile
 
   coverage:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v2
