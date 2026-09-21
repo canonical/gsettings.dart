@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.9
+
+* chore: bump dependency dbus to 0.8.0
+
 ## 0.2.8
 
 * feat: support to specify schema directories
