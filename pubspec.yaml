@@ -1,5 +1,5 @@
 name: gsettings
-version: 0.2.8
+version: 0.2.9
 
 description:
   Provides a client to access GSettings - a settings database used for storing user preferences on Linux.
@@ -13,7 +13,7 @@ platforms:
   linux:
 
 dependencies:
-  dbus: ^0.7.8
+  dbus: ^0.8.0
   xdg_directories: ^1.0.0
 
 dev_dependencies:
